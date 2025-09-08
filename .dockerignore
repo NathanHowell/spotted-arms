@@ -1,6 +1,5 @@
 # Ignore build artifacts and cache
 /target/
-Cargo.lock
 
 # Ignore Git and IDE files
 .git/

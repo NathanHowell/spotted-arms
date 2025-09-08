@@ -1,5 +1,5 @@
-use std::net::{IpAddr, Ipv6Addr};
 use clap::Parser;
+use std::net::{IpAddr, Ipv6Addr};
 use tokio::net::TcpListener;
 use tracing::info;
 
@@ -36,7 +36,11 @@ struct Cli {
     telemetry_project_id: Option<String>,
 
     /// 🔔 Webhook endpoint path (default: /webhook)
-    #[arg(long = "webhook-path", env = "WEBHOOK_PATH", default_value = "/webhook")]
+    #[arg(
+        long = "webhook-path",
+        env = "WEBHOOK_PATH",
+        default_value = "/webhook"
+    )]
     webhook_path: String,
 }
 
@@ -62,8 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .or_else(|| discovered.as_ref().map(|(p, _)| p.clone()))
             .expect("project id resolution");
         let region = if let Some(zone) = &cli.zone {
-            zone
-                .rsplit_once('-')
+            zone.rsplit_once('-')
                 .map(|(r, _)| r.to_string())
                 .unwrap_or_else(|| zone.clone())
         } else {
@@ -98,7 +101,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Normalize webhook path and build app
     let mut webhook_path = cli.webhook_path.clone();
     if webhook_path.is_empty() || webhook_path == "/" {
-        info!("Invalid WEBHOOK_PATH '{}'; defaulting to /webhook", webhook_path);
+        info!(
+            "Invalid WEBHOOK_PATH '{}'; defaulting to /webhook",
+            webhook_path
+        );
         webhook_path = "/webhook".to_string();
     }
     if !webhook_path.starts_with('/') {

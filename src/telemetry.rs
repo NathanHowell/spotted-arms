@@ -13,7 +13,9 @@ use tracing_opentelemetry::{OpenTelemetryLayer, OpenTelemetrySpanExt};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Initialize OpenTelemetry with Google Cloud Trace
-pub async fn init_tracing(project_id_override: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn init_tracing(
+    project_id_override: Option<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Prefer explicit override, otherwise discover via metadata
     let project_id = if let Some(pid) = project_id_override {
         pid
