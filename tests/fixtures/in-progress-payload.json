@@ -1,0 +1,5 @@
+{
+  "action": "in_progress",
+  "workflow_job": {"id": 1, "run_id": 1, "labels": []},
+  "repository": {"url": "https://api.github.com/repos/owner/repo", "full_name": "owner/repo"}
+}

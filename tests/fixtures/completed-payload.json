@@ -1,0 +1,17 @@
+{
+  "action": "completed",
+  "workflow_job": {
+    "id": 42,
+    "run_id": 123,
+    "labels": ["self-hosted", "linux", "ARM64"],
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "repository": {
+    "id": 1,
+    "name": "repo",
+    "private": false,
+    "url": "https://api.github.com/repos/owner/repo",
+    "full_name": "owner/repo"
+  }
+}
