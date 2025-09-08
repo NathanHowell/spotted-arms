@@ -1,0 +1,24 @@
+# Ignore build artifacts and cache
+/target/
+Cargo.lock
+
+# Ignore Git and IDE files
+.git/
+.gitignore
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Ignore documentation and non-essential files
+README.md
+LICENSE
+assets/
+
+# Ignore test files (they're copied separately if needed)
+/tests/
+
+# Docker files themselves
+Dockerfile
+.dockerignore
