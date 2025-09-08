@@ -338,6 +338,7 @@ mod tests {
             &project_id,
             &region,
             &github_token,
+            "test-template",
             instance_name,
             &mock_event,
         )
