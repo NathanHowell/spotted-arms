@@ -47,3 +47,14 @@ The container supports all environment variables documented in the main README:
 The container exposes the following endpoints:
 - `GET /ping` - Liveness probe
 - `POST /health_check` - Detailed health check
+
+## GitHub Actions Integration
+
+An example GitHub Actions workflow for building and pushing the Docker image is provided in `.github/workflows/docker.yml.example`. This workflow:
+
+- Builds the image for linux/amd64 platform
+- Pushes to GitHub Container Registry
+- Includes security scanning with Trivy
+- Uses Docker layer caching for faster builds
+
+To use it, rename the file to `docker.yml` and customize as needed.
