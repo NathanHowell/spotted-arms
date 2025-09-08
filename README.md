@@ -1,6 +1,6 @@
-# Ephemeral Runner for GitHub Actions on Google Compute Engine
+# Spotless Arms
 
-A small Rust service that listens for GitHub `workflow_job` webhooks and provisions ephemeral self‑hosted runners on Google Compute Engine using a region instance template. When jobs complete, the service deletes the instance.
+Spotless Arms is a small Rust service that listens for GitHub `workflow_job` webhooks and provisions ephemeral self‑hosted runners on Google Compute Engine using a region instance template. When jobs complete, the service deletes the instance.
 
 ## Features
 - Axum HTTP server with webhook verification
@@ -11,7 +11,7 @@ A small Rust service that listens for GitHub `workflow_job` webhooks and provisi
 - Health and ping endpoints
 
 ## Endpoints
-- `POST /webhook` — GitHub webhook receiver for `workflow_job` events
+- `POST /webhook` — GitHub webhook receiver for `workflow_job` events (default; configurable via `WEBHOOK_PATH` or `--webhook-path`)
 - `GET /ping` — simple liveness probe (returns `pong`)
 - `POST /health_check` — returns JSON status and request headers
 
@@ -28,7 +28,7 @@ A small Rust service that listens for GitHub `workflow_job` webhooks and provisi
 This service intentionally avoids baked‑in defaults. Provide configuration via environment variables or GCP metadata.
 
 ### Required
-- `PORT` — TCP port for the HTTP server (e.g., `3000`).
+- `PORT` — TCP port for the HTTP server. Defaults to `3000` if unset.
 - `GITHUB_CREDENTIALS` — JSON document with your GitHub token and webhook secret, for example:
 
   ```json
@@ -53,10 +53,10 @@ This service intentionally avoids baked‑in defaults. Provide configuration via
 - Currently, instance creation only supports the `us-central1` region. If your zone/region differs, the request is rejected. Zone within the region is selected deterministically per instance.
 
 ## Running locally
-1. Export the required variables:
+1. Export the required variables (you can omit `PORT` to use the default `3000`):
 
    ```bash
-   export PORT=3000
+   # export PORT=3000
    export INSTANCE_TEMPLATE=c4a-standard-1   # example
    export GITHUB_CREDENTIALS='{"token":"<token>","secret":"<secret>"}'
    export GOOGLE_CLOUD_PROJECT=<project>      # or ensure metadata is available
@@ -66,15 +66,18 @@ This service intentionally avoids baked‑in defaults. Provide configuration via
 2. Build and run:
 
    ```bash
-   cargo run --bin ephemeral-runner
+   cargo run --bin spotless-arms -- --help
+   # or specify a port via CLI or env
+   cargo run --bin spotless-arms -- --port 8080
+   PORT=9090 cargo run --bin spotless-arms
    ```
 
-3. Send a test webhook payload (ensure the signature/secret matches) to `http://localhost:3000/webhook`.
+3. Send a test webhook payload (ensure the signature/secret matches) to `http://localhost:3000/webhook` (or your configured path).
 
 ## Deploying
 - Run as a service on GCE/GKE/Cloud Run with the above environment.
 - Ensure the service account has the Compute and Trace permissions listed.
-- Configure your GitHub App webhook to point at `https://<your-host>/webhook` and set the same shared secret used in `GITHUB_CREDENTIALS`.
+- Configure your GitHub App webhook to point at `https://<your-host>/webhook` (or your configured path) and set the same shared secret used in `GITHUB_CREDENTIALS`.
 
 ## How it works
 - Webhook handler validates the request and inspects `workflow_job` events.
@@ -85,15 +88,28 @@ This service intentionally avoids baked‑in defaults. Provide configuration via
 - On `workflow_job.completed`, it computes the same zone and calls `instances.delete`.
 
 ## Troubleshooting
-- Missing `PORT` → process exits on startup.
+- `PORT` not set → server listens on `3000` by default.
 - Missing `GITHUB_CREDENTIALS` or malformed JSON → startup error.
-- Missing `INSTANCE_TEMPLATE` → request handling returns 500 with clear error and logs.
-- Unable to determine project/zone → metadata call errors if env not set.
+- Missing `INSTANCE_TEMPLATE` → startup error.
+- Unable to determine project/zone → metadata discovery fails; provide `--project-id` and `--zone`.
 - Region not `us-central1` → request rejected; set a `us-central1-*` zone.
 
 ## Development
 - Build: `cargo build`
 - Check: `cargo check`
 - Test: `cargo test`
+
+## CLI usage
+- `--help` shows usage and options.
+- Options mirror env vars and accept Unicode descriptions.
+
+Available flags
+- `-p, --port` (env: `PORT`) — 🚪 HTTP server port. Default: `3000`.
+- `--github-credentials` (env: `GITHUB_CREDENTIALS`) — 🔑 GitHub credentials JSON: {"token":"...","secret":"..."}.
+- `--instance-template` (env: `INSTANCE_TEMPLATE`) — 🧩 GCE region instance template name.
+- `--project-id` (env: `GOOGLE_CLOUD_PROJECT`) — 🏷️ Google Cloud project ID. Also sets `GCP_PROJECT` for compatibility.
+- `--zone` (env: `GOOGLE_CLOUD_ZONE`) — 📍 Google Cloud zone (e.g., `us-central1-f`).
+- `--telemetry-project-id` (env: `PROJECT_ID`) — 📊 Cloud Trace project override.
+- `--webhook-path` (env: `WEBHOOK_PATH`) — 🔔 Webhook endpoint path. Default: `/webhook`.
 
 Contributions and improvements welcome!

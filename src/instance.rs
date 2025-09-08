@@ -89,6 +89,7 @@ pub async fn create_instance(
     project_id: &str,
     region: &str,
     github_token: &str,
+    instance_template: &str,
     instance_name: &str,
     event: &crate::webhook::WorkflowJobWebhook,
 ) -> Result<(), ErrorResponse> {
@@ -121,15 +122,8 @@ pub async fn create_instance(
         })
         .unwrap_or_default();
 
-    // Require template used for instance creation to be provided via env var.
-    let template_name = std::env::var("INSTANCE_TEMPLATE").map_err(|_| -> axum::response::ErrorResponse {
-        tracing::error!("Missing required env var INSTANCE_TEMPLATE for instance template name");
-        (
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            "missing INSTANCE_TEMPLATE env var",
-        )
-            .into()
-    })?;
+    // Use provided instance template
+    let template_name = instance_template.to_string();
 
     // Generate JIT config and fetch template metadata concurrently
     let (jit_config, template_metadata) = tokio::try_join!(

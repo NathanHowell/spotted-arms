@@ -13,14 +13,11 @@ use tracing_opentelemetry::{OpenTelemetryLayer, OpenTelemetrySpanExt};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Initialize OpenTelemetry with Google Cloud Trace
-pub async fn init_tracing() -> Result<(), Box<dyn std::error::Error>> {
-    // PROJECT_ID must be provided via env var or discoverable from metadata.
-    // No hardcoded default is used.
-    let project_id = if let Ok(pid) = std::env::var("PROJECT_ID") {
+pub async fn init_tracing(project_id_override: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+    // Prefer explicit override, otherwise discover via metadata
+    let project_id = if let Some(pid) = project_id_override {
         pid
     } else {
-        // Attempt to discover via GCP metadata as a fallback source.
-        // Map error type so callers don't need Send + Sync bound.
         let (pid, _region) = crate::metadata::get_gcp_environment()
             .await
             .map_err(|e| -> Box<dyn std::error::Error> { e })?;
@@ -34,7 +31,7 @@ pub async fn init_tracing() -> Result<(), Box<dyn std::error::Error>> {
             TracerProviderBuilder::default().with_resource(
                 Resource::builder()
                     .with_attributes(vec![
-                        opentelemetry::KeyValue::new("service.name", "ephemeral-runner"),
+                        opentelemetry::KeyValue::new("service.name", "spotless-arms"),
                         opentelemetry::KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
                     ])
                     .build(),
@@ -47,7 +44,7 @@ pub async fn init_tracing() -> Result<(), Box<dyn std::error::Error>> {
     global::set_tracer_provider(tracer_provider.clone());
 
     // Create OpenTelemetry layer
-    let tracer = tracer_provider.tracer("ephemeral-runner");
+    let tracer = tracer_provider.tracer("spotless-arms");
     let telemetry_layer = OpenTelemetryLayer::new(tracer);
 
     // Initialize tracing subscriber with both console and OpenTelemetry layers

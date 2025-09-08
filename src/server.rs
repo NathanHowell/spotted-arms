@@ -26,6 +26,7 @@ pub struct AppState {
     pub region: Arc<String>,
     pub secret: GithubToken,
     pub token: Arc<String>,
+    pub instance_template: Arc<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -35,16 +36,16 @@ struct GithubCredentialsSecret {
 }
 
 impl AppState {
-    pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let creds = std::env::var("GITHUB_CREDENTIALS")?;
-        let creds: GithubCredentialsSecret = serde_json::from_str(&creds)?;
+    /// Construct state from provided configuration values.
+    pub async fn new_with(
+        creds_json: &str,
+        project_id: String,
+        region: String,
+        instance_template: String,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let creds: GithubCredentialsSecret = serde_json::from_str(creds_json)?;
 
-        let (environment_result, compute_result) =
-            tokio::join!(get_gcp_environment(), ComputeClient::new());
-
-        let (project_id, region) =
-            environment_result.map_err(|e| -> Box<dyn std::error::Error> { e })?;
-        let compute_client = compute_result?;
+        let compute_client = ComputeClient::new().await?;
 
         Ok(Self {
             compute_client: Arc::new(compute_client),
@@ -53,7 +54,16 @@ impl AppState {
             region: Arc::new(region),
             secret: GithubToken(Arc::new(creds.secret)),
             token: Arc::new(creds.token),
+            instance_template: Arc::new(instance_template),
         })
+    }
+
+    /// Helper to discover missing project/region via metadata if needed
+    pub async fn discover_project_region() -> Result<(String, String), Box<dyn std::error::Error>> {
+        let (project_id, region) = get_gcp_environment()
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error> { e })?;
+        Ok((project_id, region))
     }
 }
 
@@ -85,9 +95,9 @@ pub async fn health_check(request: Request<Body>) -> String {
 }
 
 /// Creates the Axum router with all routes and middleware configured
-pub fn create_app(state: AppState) -> Router {
+pub fn create_app(state: AppState, webhook_path: &str) -> Router {
     Router::new()
-        .route("/webhook", post(handle_workflow_job_event).with_state(state))
+        .route(webhook_path, post(handle_workflow_job_event).with_state(state))
         .route("/ping", get(ping))
         .route("/health_check", post(health_check))
         .layer(

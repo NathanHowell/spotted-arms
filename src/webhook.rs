@@ -108,6 +108,7 @@ pub async fn handle_workflow_job_event(
                     &state.project_id,
                     &state.region,
                     &state.token,
+                    &state.instance_template,
                     instance_name.as_str(),
                     &body,
                 )
