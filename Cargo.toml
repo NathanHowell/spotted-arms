@@ -1,5 +1,5 @@
 [package]
-name = "spotless-arms"
+name = "spotted-arms"
 edition = "2024"
 version = "0.1.0"
 rust-version = "1.89.0"

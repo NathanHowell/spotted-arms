@@ -31,7 +31,7 @@ pub async fn init_tracing(project_id_override: Option<String>) -> Result<(), Box
             TracerProviderBuilder::default().with_resource(
                 Resource::builder()
                     .with_attributes(vec![
-                        opentelemetry::KeyValue::new("service.name", "spotless-arms"),
+                        opentelemetry::KeyValue::new("service.name", "spotted-arms"),
                         opentelemetry::KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
                     ])
                     .build(),
@@ -44,7 +44,7 @@ pub async fn init_tracing(project_id_override: Option<String>) -> Result<(), Box
     global::set_tracer_provider(tracer_provider.clone());
 
     // Create OpenTelemetry layer
-    let tracer = tracer_provider.tracer("spotless-arms");
+    let tracer = tracer_provider.tracer("spotted-arms");
     let telemetry_layer = OpenTelemetryLayer::new(tracer);
 
     // Initialize tracing subscriber with both console and OpenTelemetry layers

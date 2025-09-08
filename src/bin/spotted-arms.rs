@@ -5,10 +5,10 @@ use tracing::info;
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "spotless-arms",
+    name = "spotted-arms",
     version,
-    about = "Spotless Arms",
-    long_about = "Spotless Arms — an ephemeral GitHub Actions runner on Google Compute Engine"
+    about = "Spotted Arms",
+    long_about = "Spotted Arms — an ephemeral GitHub Actions runner on Google Compute Engine"
 )]
 struct Cli {
     /// 🚪 TCP port for the HTTP server
@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Resolve project/region using CLI values when provided; otherwise discover
     let (project_id, region) = if cli.project_id.is_some() || cli.zone.is_some() {
         let discovered = if cli.project_id.is_none() || cli.zone.is_none() {
-            Some(spotless_arms::server::AppState::discover_project_region().await?)
+            Some(spotted_arms::server::AppState::discover_project_region().await?)
         } else {
             None
         };
@@ -71,11 +71,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         (project_id, region)
     } else {
-        spotless_arms::server::AppState::discover_project_region().await?
+        spotted_arms::server::AppState::discover_project_region().await?
     };
 
     // Initialize telemetry with optional override
-    spotless_arms::telemetry::init_tracing(cli.telemetry_project_id.clone()).await?;
+    spotted_arms::telemetry::init_tracing(cli.telemetry_project_id.clone()).await?;
 
     // Build application state from CLI-sourced configuration
     let creds = cli
@@ -87,7 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .as_deref()
         .ok_or("Missing required --instance-template or INSTANCE_TEMPLATE env")?;
 
-    let state = spotless_arms::server::AppState::new_with(
+    let state = spotted_arms::server::AppState::new_with(
         creds,
         project_id,
         region,
@@ -104,7 +104,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if !webhook_path.starts_with('/') {
         webhook_path = format!("/{}", webhook_path);
     }
-    let app = spotless_arms::server::create_app(state, &webhook_path);
+    let app = spotted_arms::server::create_app(state, &webhook_path);
 
     // Determine port
     // Note: if neither PORT env nor --port is passed, default is 3000
@@ -124,7 +124,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Enable HTTP/2 with axum::serve
     axum::serve(listener, app)
-        .with_graceful_shutdown(spotless_arms::server::shutdown_signal())
+        .with_graceful_shutdown(spotted_arms::server::shutdown_signal())
         .await?;
 
     Ok(())

@@ -24,7 +24,7 @@ use serde_json::Value;
 ///   }
 /// }"#).unwrap();
 ///
-/// let name = spotless_arms::utils::make_instance_name(&payload);
+/// let name = spotted_arms::utils::make_instance_name(&payload);
 /// assert_eq!(name, "gha-123-42");
 /// ```
 pub fn make_instance_name(payload: &WorkflowJobWebhookEventPayload) -> String {

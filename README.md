@@ -1,6 +1,10 @@
-# Spotless Arms
+# Spotted Arms
 
-Spotless Arms is a small Rust service that listens for GitHub `workflow_job` webhooks and provisions ephemeral self‑hosted runners on Google Compute Engine using a region instance template. When jobs complete, the service deletes the instance.
+<p align="center">
+  <img src="assets/logo.png" alt="Spotted Arms logo" width="1024" />
+</p>
+
+Spotted Arms is a small Rust service that listens for GitHub `workflow_job` webhooks and provisions ephemeral self‑hosted runners on Google Compute Engine using a region instance template. When jobs complete, the service deletes the instance.
 
 ## Features
 - Axum HTTP server with webhook verification
@@ -66,10 +70,10 @@ This service intentionally avoids baked‑in defaults. Provide configuration via
 2. Build and run:
 
    ```bash
-   cargo run --bin spotless-arms -- --help
+   cargo run --bin spotted-arms -- --help
    # or specify a port via CLI or env
-   cargo run --bin spotless-arms -- --port 8080
-   PORT=9090 cargo run --bin spotless-arms
+   cargo run --bin spotted-arms -- --port 8080
+   PORT=9090 cargo run --bin spotted-arms
    ```
 
 3. Send a test webhook payload (ensure the signature/secret matches) to `http://localhost:3000/webhook` (or your configured path).

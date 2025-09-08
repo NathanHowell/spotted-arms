@@ -8,7 +8,7 @@ struct MockCompute;
 
 struct MockGithub;
 
-impl spotless_arms::compute::ComputeApi for MockCompute {
+impl spotted_arms::compute::ComputeApi for MockCompute {
     fn compute_region_instance_templates_get(
         &self,
         _params: gcloud_sdk::google_rest_apis::compute_v1::region_instance_templates_api::ComputePeriodRegionInstanceTemplatesPeriodGetParams,
@@ -17,13 +17,13 @@ impl spotless_arms::compute::ComputeApi for MockCompute {
             dyn std::future::Future<
                     Output = Result<
                         gcloud_sdk::google_rest_apis::compute_v1::InstanceTemplate,
-                        spotless_arms::compute::ComputeError,
+                        spotted_arms::compute::ComputeError,
                     >,
                 > + Send,
         >,
     > {
         Box::pin(async {
-            Err(spotless_arms::compute::ComputeError::Other(
+            Err(spotted_arms::compute::ComputeError::Other(
                 "unused".into(),
             ))
         })
@@ -37,13 +37,13 @@ impl spotless_arms::compute::ComputeApi for MockCompute {
             dyn std::future::Future<
                     Output = Result<
                         gcloud_sdk::google_rest_apis::compute_v1::Operation,
-                        spotless_arms::compute::ComputeError,
+                        spotted_arms::compute::ComputeError,
                     >,
                 > + Send,
         >,
     > {
         Box::pin(async {
-            Err(spotless_arms::compute::ComputeError::Other(
+            Err(spotted_arms::compute::ComputeError::Other(
                 "unused".into(),
             ))
         })
@@ -57,16 +57,16 @@ impl spotless_arms::compute::ComputeApi for MockCompute {
             dyn std::future::Future<
                     Output = Result<
                         gcloud_sdk::google_rest_apis::compute_v1::Operation,
-                        spotless_arms::compute::ComputeError,
+                        spotted_arms::compute::ComputeError,
                     >,
                 > + Send,
         >,
     > {
-        Box::pin(async { Err(spotless_arms::compute::ComputeError::NotFound) })
+        Box::pin(async { Err(spotted_arms::compute::ComputeError::NotFound) })
     }
 }
 
-impl spotless_arms::github::GithubApi for MockGithub {
+impl spotted_arms::github::GithubApi for MockGithub {
     fn generate_jit_config(
         &self,
         _repo_url: &reqwest::Url,
@@ -75,12 +75,12 @@ impl spotless_arms::github::GithubApi for MockGithub {
         _labels: &[String],
     ) -> std::pin::Pin<
         Box<
-            dyn std::future::Future<Output = Result<String, spotless_arms::github::GithubError>>
+            dyn std::future::Future<Output = Result<String, spotted_arms::github::GithubError>>
                 + Send,
         >,
     > {
         Box::pin(async {
-            Err(spotless_arms::github::GithubError::Other(
+            Err(spotted_arms::github::GithubError::Other(
                 "unused".into(),
             ))
         })
@@ -99,10 +99,10 @@ async fn handle_completed_event_deletes_instance() {
     // Load completed payload
     let body_str = include_str!("fixtures/completed-payload.json");
     let mut de = Deserializer::from_str(body_str);
-    let body: spotless_arms::webhook::WorkflowJobWebhook =
+    let body: spotted_arms::webhook::WorkflowJobWebhook =
         serde_path_to_error::deserialize(&mut de).unwrap();
 
-    let state = spotless_arms::server::AppState {
+    let state = spotted_arms::server::AppState {
         compute_client: Arc::new(MockCompute),
         github_client: Arc::new(MockGithub),
         project_id: Arc::new("test-project".to_string()),
@@ -112,7 +112,7 @@ async fn handle_completed_event_deletes_instance() {
         instance_template: Arc::new("template".into()),
     };
 
-    let res = spotless_arms::webhook::handle_workflow_job_event(
+    let res = spotted_arms::webhook::handle_workflow_job_event(
         headers,
         axum::extract::State(state),
         axum_github_webhook_extract::GithubEvent(body),
