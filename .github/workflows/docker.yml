@@ -80,7 +80,7 @@ jobs:
       - name: Run security scan
         uses: aquasecurity/trivy-action@0.24.0
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
           format: 'sarif'
           output: 'trivy-results.sarif'
 
