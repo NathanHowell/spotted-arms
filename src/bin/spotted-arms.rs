@@ -34,14 +34,6 @@ struct Cli {
     /// 📊 Cloud Trace project override for telemetry
     #[arg(long = "telemetry-project-id", env = "PROJECT_ID")]
     telemetry_project_id: Option<String>,
-
-    /// 🔔 Webhook endpoint path (default: /webhook)
-    #[arg(
-        long = "webhook-path",
-        env = "WEBHOOK_PATH",
-        default_value = "/webhook"
-    )]
-    webhook_path: String,
 }
 
 #[tokio::main]
@@ -98,19 +90,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .await?;
 
-    // Normalize webhook path and build app
-    let mut webhook_path = cli.webhook_path.clone();
-    if webhook_path.is_empty() || webhook_path == "/" {
-        info!(
-            "Invalid WEBHOOK_PATH '{}'; defaulting to /webhook",
-            webhook_path
-        );
-        webhook_path = "/webhook".to_string();
-    }
-    if !webhook_path.starts_with('/') {
-        webhook_path = format!("/{}", webhook_path);
-    }
-    let app = spotted_arms::server::create_app(state, &webhook_path);
+    // Build app with fixed webhook path (/webhook)
+    let app = spotted_arms::server::create_app(state);
 
     // Determine port
     // Note: if neither PORT env nor --port is passed, default is 3000

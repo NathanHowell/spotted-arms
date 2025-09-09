@@ -15,7 +15,7 @@ Spotted Arms is a small Rust service that listens for GitHub `workflow_job` webh
 - Health and ping endpoints
 
 ## Endpoints
-- `POST /webhook` — GitHub webhook receiver for `workflow_job` events (default; configurable via `WEBHOOK_PATH` or `--webhook-path`)
+- `POST /webhook` — GitHub webhook receiver for `workflow_job` events
 - `GET /ping` — simple liveness probe (returns `pong`)
 - `POST /health_check` — returns JSON status and request headers
 
@@ -76,12 +76,12 @@ This service intentionally avoids baked‑in defaults. Provide configuration via
    PORT=9090 cargo run --bin spotted-arms
    ```
 
-3. Send a test webhook payload (ensure the signature/secret matches) to `http://localhost:3000/webhook` (or your configured path).
+3. Send a test webhook payload (ensure the signature/secret matches) to `http://localhost:3000/webhook`.
 
 ## Deploying
 - Run as a service on GCE/GKE/Cloud Run with the above environment.
 - Ensure the service account has the Compute and Trace permissions listed.
-- Configure your GitHub App webhook to point at `https://<your-host>/webhook` (or your configured path) and set the same shared secret used in `GITHUB_CREDENTIALS`.
+- Configure your GitHub App webhook to point at `https://<your-host>/webhook` and set the same shared secret used in `GITHUB_CREDENTIALS`.
 
 ## How it works
 - Webhook handler validates the request and inspects `workflow_job` events.
@@ -114,6 +114,5 @@ Available flags
 - `--project-id` (env: `GOOGLE_CLOUD_PROJECT`) — 🏷️ Google Cloud project ID. Also sets `GCP_PROJECT` for compatibility.
 - `--zone` (env: `GOOGLE_CLOUD_ZONE`) — 📍 Google Cloud zone (e.g., `us-central1-f`).
 - `--telemetry-project-id` (env: `PROJECT_ID`) — 📊 Cloud Trace project override.
-- `--webhook-path` (env: `WEBHOOK_PATH`) — 🔔 Webhook endpoint path. Default: `/webhook`.
 
 Contributions and improvements welcome!
