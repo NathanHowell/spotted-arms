@@ -22,11 +22,7 @@ impl spotted_arms::compute::ComputeApi for MockCompute {
                 > + Send,
         >,
     > {
-        Box::pin(async {
-            Err(spotted_arms::compute::ComputeError::Other(
-                "unused".into(),
-            ))
-        })
+        Box::pin(async { Err(spotted_arms::compute::ComputeError::Other("unused".into())) })
     }
 
     fn compute_instances_insert(
@@ -42,11 +38,7 @@ impl spotted_arms::compute::ComputeApi for MockCompute {
                 > + Send,
         >,
     > {
-        Box::pin(async {
-            Err(spotted_arms::compute::ComputeError::Other(
-                "unused".into(),
-            ))
-        })
+        Box::pin(async { Err(spotted_arms::compute::ComputeError::Other("unused".into())) })
     }
 
     fn compute_instances_delete(
@@ -79,11 +71,7 @@ impl spotted_arms::github::GithubApi for MockGithub {
                 + Send,
         >,
     > {
-        Box::pin(async {
-            Err(spotted_arms::github::GithubError::Other(
-                "unused".into(),
-            ))
-        })
+        Box::pin(async { Err(spotted_arms::github::GithubError::Other("unused".into())) })
     }
 }
 
