@@ -57,7 +57,9 @@ fn select_zone_for_region(region: &str, instance_name: &str) -> Result<String, B
             "Unsupported region: {}. Only us-central1 is currently supported.",
             region
         );
-        return Err(Box::new(ErrorResponse::from(axum::http::StatusCode::BAD_REQUEST)));
+        return Err(Box::new(ErrorResponse::from(
+            axum::http::StatusCode::BAD_REQUEST,
+        )));
     }
 
     let mut hasher = DefaultHasher::new();
