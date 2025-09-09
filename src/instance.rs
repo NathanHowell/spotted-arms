@@ -51,13 +51,14 @@ fn add_event_fields_to_span(event: &crate::webhook::WorkflowJobWebhook) {
 }
 
 /// Deterministically selects a zone based on instance name hash
-fn select_zone_for_region(region: &str, instance_name: &str) -> Result<String, ErrorResponse> {
+fn select_zone_for_region(region: &str, instance_name: &str) -> Result<String, Box<ErrorResponse>> {
     if region != "us-central1" {
         tracing::error!(
             "Unsupported region: {}. Only us-central1 is currently supported.",
             region
         );
-        return Err(ErrorResponse::from(axum::http::StatusCode::BAD_REQUEST));
+
+        return Err(ErrorResponse::from(http::StatusCode::BAD_REQUEST).into());
     }
 
     let mut hasher = DefaultHasher::new();
@@ -83,6 +84,7 @@ fn select_zone_for_region(region: &str, instance_name: &str) -> Result<String, E
     fields(job_id, repo_url, repository, run_attempt, run_id),
     err(Debug)
 )]
+#[allow(clippy::too_many_arguments)]
 pub async fn create_instance(
     api: &dyn ComputeApi,
     github: &dyn GithubApi,
@@ -92,7 +94,7 @@ pub async fn create_instance(
     instance_template: &str,
     instance_name: &str,
     event: &crate::webhook::WorkflowJobWebhook,
-) -> Result<(), ErrorResponse> {
+) -> Result<(), Box<ErrorResponse>> {
     add_event_fields_to_span(event);
 
     let repo_url = event.repository.url.clone();
@@ -101,11 +103,13 @@ pub async fn create_instance(
             repo_url = display(repo_url),
             "Unexpected repository URL format"
         );
-        return Err((
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            "Invalid repository URL format",
-        )
-            .into());
+        return Err(Box::new(
+            (
+                http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Invalid repository URL format",
+            )
+                .into(),
+        ));
     }
 
     // Extract runner name and labels from the event payload
@@ -129,7 +133,7 @@ pub async fn create_instance(
     let (jit_config, template_metadata) = tokio::try_join!(
         async {
             github
-                .generate_jit_config(&repo_url, github_token, &runner_name, &labels)
+                .generate_jit_config(&repo_url, github_token, runner_name, &labels)
                 .await
                 .map_err(|e| -> ErrorResponse {
                     tracing::error!(?e, "Failed to generate JIT config");
@@ -219,11 +223,13 @@ pub async fn create_instance(
         Err(e) => {
             tracing::error!(instance_name, ?e, "Failed to create instance from template",);
 
-            Err((
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                format!("{e:?}"),
-            )
-                .into())
+            Err(Box::new(
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("{e:?}"),
+                )
+                    .into(),
+            ))
         }
     }
 }
@@ -240,7 +246,7 @@ pub async fn delete_instance(
     region: &str,
     instance_name: &str,
     event: &crate::webhook::WorkflowJobWebhook,
-) -> Result<(), ErrorResponse> {
+) -> Result<(), Box<ErrorResponse>> {
     add_event_fields_to_span(event);
 
     info!(instance_name, "Deleting instance");
@@ -271,11 +277,13 @@ pub async fn delete_instance(
         }
         Err(other) => {
             tracing::error!(instance_name, ?other, "Failed to delete instance");
-            return Err((
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                format!("{other:?}"),
-            )
-                .into());
+            return Err(Box::new(
+                (
+                    http::StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("{other:?}"),
+                )
+                    .into(),
+            ));
         }
     }
 

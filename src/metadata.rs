@@ -47,7 +47,7 @@ async fn get_current_zone() -> Result<String, Box<dyn std::error::Error + Send +
     if response.status().is_success() {
         let zone_path = response.text().await?;
         // Extract zone name from the full path (e.g., "projects/123/zones/us-central1-f" -> "us-central1-f")
-        match zone_path.split('/').last() {
+        match zone_path.split('/').next_back() {
             Some(z) if !z.is_empty() => Ok(z.to_string()),
             _ => Err("Unable to determine zone from metadata response".into()),
         }

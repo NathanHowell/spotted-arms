@@ -34,6 +34,12 @@ impl GithubClient {
     }
 }
 
+impl Default for GithubClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GithubApi for GithubClient {
     #[instrument(skip(self, github_token))]
     fn generate_jit_config(

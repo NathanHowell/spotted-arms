@@ -133,6 +133,7 @@ pub async fn handle_workflow_job_event(
     }
     .instrument(span)
     .await
+    .map_err(|e| *e)
 }
 
 #[cfg(test)]
