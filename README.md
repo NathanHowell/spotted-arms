@@ -29,26 +29,33 @@ Spotted Arms is a small Rust service that listens for GitHub `workflow_job` webh
 - A GitHub App or token able to call the JIT config endpoint with repository admin permissions for Actions runners (or equivalent)
 
 ## Configuration
-This service intentionally avoids baked‑in defaults. Provide configuration via environment variables or GCP metadata.
+This service intentionally avoids baked‑in defaults. Configure it via CLI flags or the corresponding environment variables; when omitted, some values can be discovered from GCP metadata.
 
 ### Required
-- `PORT` — TCP port for the HTTP server. Defaults to `3000` if unset.
-- `GITHUB_CREDENTIALS` — JSON document with your GitHub token and webhook secret, for example:
+- `PORT` / `--port` — TCP port for the HTTP server. Defaults to `3000` if unset.
+- `GITHUB_CREDENTIALS` / `--github-credentials` — JSON with your GitHub token and webhook secret, for example:
 
   ```json
   { "token": "ghp_xxx", "secret": "webhook-shared-secret" }
   ```
 
-- `INSTANCE_TEMPLATE` — Name of the GCE region instance template to use.
+- `INSTANCE_TEMPLATE` / `--instance-template` — Name of the GCE region instance template to use.
 
 ### Project/Location
-- Project ID: either `GOOGLE_CLOUD_PROJECT` or `GCP_PROJECT`, or discoverable via the GCE metadata server.
+- Project ID: `--project-id` (preferred) or `GOOGLE_CLOUD_PROJECT`/`GCP_PROJECT`, or discoverable via the GCE metadata server.
 - Zone/Region:
-  - `GOOGLE_CLOUD_ZONE` (e.g., `us-central1-f`), or discoverable via metadata.
+  - Zone: `--zone` or `GOOGLE_CLOUD_ZONE` (e.g., `us-central1-f`).
   - Region is derived from the zone suffix (e.g., `us-central1`).
 
 ### Telemetry
-- `PROJECT_ID` — If set, used by the Cloud Trace exporter; otherwise falls back to GCP metadata discovery as above.
+- `--telemetry-project-id` / `PROJECT_ID` — Used by the Cloud Trace exporter; otherwise falls back to GCP metadata discovery.
+
+### Precedence
+- CLI flags override environment variables.
+- If neither flag nor env is set:
+  - Project ID and zone are discovered via the GCP metadata server (on GCE).
+  - Region is derived from the zone (e.g., `us-central1-f` → `us-central1`).
+  - Port defaults to `3000`.
 
 ### GitHub filtering
 - Jobs must include all required labels to be processed: `linux`, `self-hosted`, `ARM64`.
@@ -57,7 +64,9 @@ This service intentionally avoids baked‑in defaults. Provide configuration via
 - Currently, instance creation only supports the `us-central1` region. If your zone/region differs, the request is rejected. Zone within the region is selected deterministically per instance.
 
 ## Running locally
-1. Export the required variables (you can omit `PORT` to use the default `3000`):
+1. Configure the required values (via flags or env). Examples:
+
+   Using environment variables (you can omit `PORT` to use `3000`):
 
    ```bash
    # export PORT=3000
@@ -65,6 +74,16 @@ This service intentionally avoids baked‑in defaults. Provide configuration via
    export GITHUB_CREDENTIALS='{"token":"<token>","secret":"<secret>"}'
    export GOOGLE_CLOUD_PROJECT=<project>      # or ensure metadata is available
    export GOOGLE_CLOUD_ZONE=us-central1-f
+   ```
+
+   Or using CLI flags:
+
+   ```bash
+   cargo run --bin spotted-arms -- \
+     --github-credentials '{"token":"<token>","secret":"<secret>"}' \
+     --instance-template c4a-standard-1 \
+     --project-id <project> \
+     --zone us-central1-f
    ```
 
 2. Build and run:
