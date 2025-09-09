@@ -1,7 +1,22 @@
 #!/usr/bin/env python3
 """
-GitHub Actions runner startup script
-Python version of cloud-init.sh
+GitHub Actions runner startup script for GCE instances.
+
+This script is intended to be used as a cloud-init style startup script
+for the runner VM. It performs the following high-level steps:
+
+- Detects the current GCP project ID and region from the metadata server.
+- Prepares directories for the runner workdir, persisting them on the
+  stateful partition and bind-mounting into their runtime locations.
+- Configures Docker (auth and daemon.json) to use an Artifact Registry
+  virtual repository in the current region as a mirror, then reloads Docker.
+- Creates and enables a systemd unit that runs the GitHub Actions runner
+  in a container, and powers off the VM when the job completes.
+
+Notes
+- This script assumes access to the GCE metadata server
+  (http://metadata.google.internal) and that Docker is installed.
+- It targets a minimal, ephemeral lifecycle: run one job and then power off.
 """
 
 import base64
@@ -13,49 +28,55 @@ import sys
 import urllib.request
 from http.client import HTTPResponse
 from pathlib import Path
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
 
 class GCPJSONFormatter(logging.Formatter):
-    """JSON formatter optimized for GCP Cloud Logging"""
+    """JSON formatter optimized for GCP Cloud Logging.
 
-    def format(self, record):
+    Formats Python log records into a structure that Cloud Logging understands
+    so severity, source location, and timestamps are parsed and indexed.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:  # type: ignore[override]
         # Build the log entry following GCP Cloud Logging structure
-        log_entry = {
+        log_entry: Dict[str, Any] = {
             "severity": record.levelname or "DEFAULT",
             "message": record.getMessage(),
             "timestamp": {
                 "seconds": int(record.created),
-                "nanos": int((record.created % 1) * 1e9)
+                "nanos": int((record.created % 1) * 1_000_000_000),
             },
             "sourceLocation": {
                 "file": record.pathname,
                 "line": str(record.lineno),
-                "function": record.funcName
+                "function": record.funcName,
             },
             "labels": {
                 "component": "github-actions-runner",
-                "module": record.module
-            }
+                "module": record.module,
+            },
         }
 
         # Add exception information if present
         if record.exc_info:
             log_entry["exception"] = self.formatException(record.exc_info)
 
-        # Add any extra fields from the log record
+        # Attach arbitrary extras if provided by the caller
         if hasattr(record, "extra_fields"):
-            log_entry.update(record.extra_fields)
+            log_entry.update(record.extra_fields)  # type: ignore[arg-type]
 
         return json.dumps(log_entry)
 
 
-def get_project_id():
-    """Get project ID from metadata server"""
+def get_project_id() -> str:
+    """Return the current GCP project ID via the metadata server."""
+    # The metadata server is only reachable from within a GCE VM.
     req = urllib.request.Request(
         "http://metadata.google.internal/computeMetadata/v1/project/project-id",
-        headers={"Metadata-Flavor": "Google"}
+        headers={"Metadata-Flavor": "Google"},
     )
     response: HTTPResponse
     with urllib.request.urlopen(req, timeout=10) as response:
@@ -64,38 +85,61 @@ def get_project_id():
         return project_id
 
 
-def get_region():
-    """Get project ID from metadata server"""
+def get_region() -> str:
+    """Return the region derived from the VM's zone via the metadata server.
+
+    The metadata value has the format:
+      projects/<num>/zones/<region>-<zone-suffix>
+    This function returns just the `<region>` portion.
+    """
     req = urllib.request.Request(
         "http://metadata.google.internal/computeMetadata/v1/instance/zone",
-        headers={"Metadata-Flavor": "Google"}
+        headers={"Metadata-Flavor": "Google"},
     )
     response: HTTPResponse
     with urllib.request.urlopen(req, timeout=10) as response:
-        zone = response.read().decode("utf-8").strip()
-        logger.debug(f"Retrieved : {zone}")
+        zone_path = response.read().decode("utf-8").strip()
+        logger.debug(f"Retrieved zone path: {zone_path}")
         # Zone format: projects/12345/zones/us-central1-a
-        return zone.partition("/zones/")[-1].rsplit("-", 1)[0]
+        zone = zone_path.partition("/zones/")[-1]
+        region = zone.rsplit("-", 1)[0]
+        return region
 
 
-def get_jitconfig():
-    """Get access token from metadata server"""
+def get_jitconfig() -> str:
+    """Return the GitHub runner JIT configuration from instance metadata.
+
+    The `JIT_CONFIG` attribute is expected to be attached to the instance
+    and consumed by `actions/runner` for just-in-time configuration.
+    """
     req = urllib.request.Request(
         "http://metadata.google.internal/computeMetadata/v1/instance/attributes/JIT_CONFIG",
-        headers={"Metadata-Flavor": "Google"}
+        headers={"Metadata-Flavor": "Google"},
     )
     response: HTTPResponse
     with urllib.request.urlopen(req, timeout=10) as response:
         return response.read().decode("utf-8")
 
 
-def fetch_secret(secret_name, project_id, access_token):
-    """Fetch secret from Google Secret Manager"""
-    url = f"https://secretmanager.googleapis.com/v1/projects/{project_id}/secrets/{secret_name}/versions/latest:access"
-    req = urllib.request.Request(
-        url,
-        headers={"Authorization": f"Bearer {access_token}"}
+def fetch_secret(secret_name: str, project_id: str, access_token: str) -> Dict[str, Any]:
+    """Fetch and return a secret JSON payload from Secret Manager.
+
+    Parameters
+    - secret_name: Secret resource name within the project.
+    - project_id: GCP project ID where the secret resides.
+    - access_token: OAuth2 Bearer token with `secretmanager.versions.access`.
+
+    Returns
+    - Parsed JSON value stored in the secret's latest version.
+
+    Note: This helper is currently unused by the flow but is handy for
+    retrieving JSON secrets if needed in the future.
+    """
+    url = (
+        f"https://secretmanager.googleapis.com/v1/projects/{project_id}/secrets/"
+        f"{secret_name}/versions/latest:access"
     )
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {access_token}"})
     with urllib.request.urlopen(req, timeout=30) as response:
         secret_data = json.loads(response.read().decode("utf-8"))
         payload = base64.b64decode(secret_data["payload"]["data"]).decode("utf-8")
@@ -104,16 +148,42 @@ def fetch_secret(secret_name, project_id, access_token):
 
 
 def configure_runner_dirs() -> None:
-    subprocess.check_call(
-        ["install", "--directory", "--owner", "root", "--group", "root", "--mode", "0777", "--verbose",
-         "/mnt/stateful_partition/var/lib/github"])
+    """Create and bind-mount the runner work directory onto a stateful path.
 
+    Many GCE images have a stateful partition at `/mnt/stateful_partition` that
+    persists across reboots. We place the runner workdir there and bind-mount
+    it to `/var/lib/github` for the container to use as `_work`.
+    """
+    # Ensure destination exists with permissive mode (runner container writes here)
     subprocess.check_call(
-        ["mount", "--bind", "/mnt/stateful_partition/var/lib/github", "/var/lib/github", "-o", "rw,nodev,relatime"]
+        [
+            "install",
+            "--directory",
+            "--owner",
+            "root",
+            "--group",
+            "root",
+            "--mode",
+            "0777",
+            "--verbose",
+            "/mnt/stateful_partition/var/lib/github",
+        ]
+    )
+
+    # Bind-mount stateful path to the expected runtime location
+    subprocess.check_call(
+        [
+            "mount",
+            "--bind",
+            "/mnt/stateful_partition/var/lib/github",
+            "/var/lib/github",
+            "-o",
+            "rw,nodev,relatime",
+        ]
     )
 
 
-def main():
+def main() -> None:
     logger.info("Starting GitHub Actions runner setup...")
     configure_runner_dirs()
 
@@ -127,7 +197,7 @@ def main():
         logger.error("Error configuring Docker registry mirrors", exc_info=e)
         sys.exit(1)
 
-    logger.info("Opening up docker for the world, I am so sorry")
+    # Allow non-root processes (e.g. the runner container) to talk to Docker
     subprocess.check_call(["chmod", "a=rw", "/var/run/docker.sock"])
 
     logger.info("Reloading docker configuration...")
@@ -135,7 +205,7 @@ def main():
         subprocess.run(["systemctl", "reload", "docker"], check=True)
         logger.info("Docker configuration reloaded successfully")
     except Exception as e:
-        logger.error(f"Error reloading Docker", exc_info=e)
+        logger.error("Error reloading Docker", exc_info=e)
         sys.exit(1)
 
     logger.info("Runner setup complete, creating systemd unit and starting runner...")
@@ -150,7 +220,14 @@ def main():
 
 
 def configure_docker(region: str, project_id: str) -> str:
-    """Configure Docker daemon with registry mirrors and recommended settings"""
+    """Configure Docker daemon with registry mirror and recommended settings.
+
+    - Sets up `docker-credential-gcr` for Artifact Registry and GCR.
+    - Adds an Artifact Registry virtual repository mirror for faster pulls.
+    - Enables IPv6 in the Docker daemon (matching recommended defaults).
+
+    Returns the URL of the virtual repository used as a mirror.
+    """
     # /root is read-only, so use /tmp for the user docker config
     os.environ["DOCKER_CONFIG"] = "/tmp/.docker/"
     Path(os.environ["DOCKER_CONFIG"]).mkdir(parents=True, exist_ok=True)
@@ -179,7 +256,7 @@ def configure_docker(region: str, project_id: str) -> str:
         logger.info("Creating new daemon.json configuration...")
         daemon_config = {}
 
-    # Add or update registry mirrors
+    # Add or update registry mirrors: use a region-local Artifact Registry virtual repo
     virtual_repo = f"{region}-docker.pkg.dev/{project_id}/virtual"
     daemon_config.setdefault("registry-mirrors", []).append(virtual_repo)
 
@@ -190,15 +267,18 @@ def configure_docker(region: str, project_id: str) -> str:
     with daemon_json_path.open("w") as f:
         json.dump(daemon_config, f, indent=2)
 
-    logger.info(f"Successfully configured Docker registry mirrors: {virtual_repo}")
+    logger.info(f"Successfully configured Docker registry mirror: {virtual_repo}")
 
     return virtual_repo
 
 
 def write_systemd_unit(virtual_repo: str) -> Path:
-    """Create a systemd unit to manage the GitHub Actions runner container.
+    """Create a systemd unit to manage the runner container and VM lifecycle.
 
-    Keeps existing docker parameters and adds logging + lifecycle handling.
+    The unit:
+    - Starts a Docker container running the `actions/runner` image with JIT config.
+    - Uses Google Cloud Logging (gcplogs) for container logs.
+    - Powers off the VM once the container exits (i.e., after the job completes).
     """
     unit_path = Path("/etc/systemd/system/gha-runner.service")
     jit = get_jitconfig()
