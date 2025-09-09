@@ -1,7 +1,7 @@
 # Spotted Arms
 
 <p align="center">
-  <img src="assets/logo.png" alt="Spotted Arms logo" width="1024" />
+  <img src="assets/logo.svg" alt="Spotted Arms logo" width="1024" />
 </p>
 
 Spotted Arms is a small Rust service that listens for GitHub `workflow_job` webhooks and provisions ephemeral self‑hosted runners on Google Compute Engine using a region instance template. When jobs complete, the service deletes the instance.
