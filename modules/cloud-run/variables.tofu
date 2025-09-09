@@ -28,11 +28,6 @@ variable "vm_subnetwork_self_link" {
   type        = string
 }
 
-variable "zone" {
-  description = "The GCP zone"
-  type        = string
-}
-
 variable "secrets" {
   description = "Map of environment variable names to Secret Manager secret names"
   type        = map(string)

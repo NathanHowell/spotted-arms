@@ -21,7 +21,6 @@ module "gha_webhook" {
   # Runners
   vm_service_account_email   = "gha-runner@PROJECT.iam.gserviceaccount.com"
   vm_subnetwork_self_link    = "projects/PROJECT/regions/us-central1/subnetworks/DEFAULT"
-  zone                       = "us-central1-f"
 
   # Map Secret Manager secret names to env vars inside the service
   secrets = {
@@ -87,4 +86,3 @@ provider "google" {
   region  = "us-central1"
 }
 ```
-

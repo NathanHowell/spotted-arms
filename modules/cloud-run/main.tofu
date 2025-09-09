@@ -51,10 +51,7 @@ resource "google_cloud_run_service" "service" {
           value = data.google_client_config.default.project
         }
 
-        env {
-          name  = "ZONE"
-          value = var.zone
-        }
+        
 
         dynamic "env" {
           for_each = var.secrets
