@@ -10,7 +10,7 @@ This module deploys the Spotted Arms webhook to Cloud Run and provisions a GCE r
 
 ```hcl
 module "gha_webhook" {
-  source = "github.com/NathanHowell/spotless-arms//modules/cloud-run?ref=main" # pin to a tag/sha in production
+  source = "github.com/NathanHowell/spotted-arms//modules/cloud-run?ref=main" # pin to a tag/sha in production
 
   # Cloud Run
   location                     = "us-central1"
