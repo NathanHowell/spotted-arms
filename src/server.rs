@@ -95,12 +95,9 @@ pub async fn health_check(request: Request<Body>) -> String {
 }
 
 /// Creates the Axum router with all routes and middleware configured
-pub fn create_app(state: AppState, webhook_path: &str) -> Router {
+pub fn create_app(state: AppState) -> Router {
     Router::new()
-        .route(
-            webhook_path,
-            post(handle_workflow_job_event).with_state(state),
-        )
+        .route("/webhook", post(handle_workflow_job_event).with_state(state))
         .route("/ping", get(ping))
         .route("/health_check", post(health_check))
         .layer(
