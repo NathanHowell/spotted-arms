@@ -27,7 +27,7 @@ jobs:
       run: cargo fmt --all -- --check
 
     - name: Run clippy
-      run: cargo clippy --all-targets --all-features
+      run: cargo clippy --all-targets --all-features -- -W clippy::all
 
     - name: Run tests
       run: cargo test --all-features
