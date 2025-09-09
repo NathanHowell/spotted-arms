@@ -1,3 +1,5 @@
+#![allow(unused_crate_dependencies)]
+
 use std::sync::Arc;
 
 use axum::http::HeaderMap;

@@ -1,3 +1,5 @@
+#![allow(unused_crate_dependencies)]
+
 use octocrab::models::webhook_events::payload::{
     WorkflowJobWebhookEventAction, WorkflowJobWebhookEventPayload,
 };

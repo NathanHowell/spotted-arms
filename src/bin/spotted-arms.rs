@@ -1,3 +1,5 @@
+#![allow(unused_crate_dependencies)]
+
 use clap::Parser;
 use std::net::{IpAddr, Ipv6Addr};
 use tokio::net::TcpListener;

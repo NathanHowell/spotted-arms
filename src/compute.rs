@@ -105,10 +105,10 @@ impl ComputeApi for ComputeClient {
             compute_instances_delete(&config, params)
                 .await
                 .map_err(|e| {
-                    if let compute_v1::Error::ResponseError(resp) = &e {
-                        if resp.status == reqwest::StatusCode::NOT_FOUND {
-                            return ComputeError::NotFound;
-                        }
+                    if let compute_v1::Error::ResponseError(resp) = &e
+                        && resp.status == reqwest::StatusCode::NOT_FOUND
+                    {
+                        return ComputeError::NotFound;
                     }
                     ComputeError::Other(e.to_string())
                 })

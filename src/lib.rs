@@ -1,3 +1,6 @@
+// Silence warnings for crates used only in binaries or indirectly
+#![allow(unused_crate_dependencies)]
+
 pub mod compute;
 pub mod github;
 pub mod instance;

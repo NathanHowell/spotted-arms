@@ -26,6 +26,12 @@ pub struct GithubClient {
     client: reqwest::Client,
 }
 
+impl Default for GithubClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GithubClient {
     pub fn new() -> Self {
         Self {

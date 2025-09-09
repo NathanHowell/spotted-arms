@@ -51,13 +51,13 @@ fn add_event_fields_to_span(event: &crate::webhook::WorkflowJobWebhook) {
 }
 
 /// Deterministically selects a zone based on instance name hash
-fn select_zone_for_region(region: &str, instance_name: &str) -> Result<String, ErrorResponse> {
+fn select_zone_for_region(region: &str, instance_name: &str) -> Result<String, Box<ErrorResponse>> {
     if region != "us-central1" {
         tracing::error!(
             "Unsupported region: {}. Only us-central1 is currently supported.",
             region
         );
-        return Err(ErrorResponse::from(axum::http::StatusCode::BAD_REQUEST));
+        return Err(Box::new(ErrorResponse::from(axum::http::StatusCode::BAD_REQUEST)));
     }
 
     let mut hasher = DefaultHasher::new();
@@ -83,6 +83,7 @@ fn select_zone_for_region(region: &str, instance_name: &str) -> Result<String, E
     fields(job_id, repo_url, repository, run_attempt, run_id),
     err(Debug)
 )]
+#[allow(clippy::too_many_arguments)]
 pub async fn create_instance(
     api: &dyn ComputeApi,
     github: &dyn GithubApi,
@@ -129,7 +130,7 @@ pub async fn create_instance(
     let (jit_config, template_metadata) = tokio::try_join!(
         async {
             github
-                .generate_jit_config(&repo_url, github_token, &runner_name, &labels)
+                .generate_jit_config(&repo_url, github_token, runner_name, &labels)
                 .await
                 .map_err(|e| -> ErrorResponse {
                     tracing::error!(?e, "Failed to generate JIT config");
@@ -169,7 +170,7 @@ pub async fn create_instance(
     );
 
     // Select zone deterministically based on instance name
-    let zone = select_zone_for_region(region, instance_name)?;
+    let zone = select_zone_for_region(region, instance_name).map_err(|e| *e)?;
 
     // Use the preexisting instance template
     let source_instance_template = format!(
@@ -246,7 +247,7 @@ pub async fn delete_instance(
     info!(instance_name, "Deleting instance");
 
     // Select the same zone that was used for creation
-    let zone = select_zone_for_region(region, instance_name)?;
+    let zone = select_zone_for_region(region, instance_name).map_err(|e| *e)?;
 
     match api
         .compute_instances_delete(ComputePeriodInstancesPeriodDeleteParams {
@@ -337,7 +338,7 @@ mod tests {
             &github,
             &project_id,
             &region,
-            &github_token,
+            github_token,
             "test-template",
             instance_name,
             &mock_event,
