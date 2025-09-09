@@ -51,8 +51,6 @@ resource "google_cloud_run_service" "service" {
           value = data.google_client_config.default.project
         }
 
-        
-
         dynamic "env" {
           for_each = var.secrets
           content {
