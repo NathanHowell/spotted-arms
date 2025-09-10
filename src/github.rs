@@ -5,6 +5,12 @@ use std::pin::Pin;
 use thiserror::Error;
 use tracing::instrument;
 
+fn user_agent() -> String {
+    let sha = option_env!("VERGEN_GIT_SHA_SHORT").unwrap_or("unknown");
+    let ver = env!("CARGO_PKG_VERSION");
+    format!("spotted-arms/{ver} ({sha})")
+}
+
 #[derive(Debug, Error)]
 pub enum GithubError {
     #[error("github api error: {0}")]
@@ -66,7 +72,7 @@ impl GithubApi for GithubClient {
                 .post(format!("{repo_url}/actions/runners/generate-jitconfig"))
                 .bearer_auth(&token)
                 .header("Accept", "application/vnd.github+json")
-                .header("User-Agent", "gha-autoscaler")
+                .header("User-Agent", user_agent())
                 .header("Content-Type", "application/json")
                 .header("X-GitHub-Api-Version", "2022-11-28")
                 .json(&body)
@@ -94,5 +100,27 @@ impl GithubApi for GithubClient {
                 .map(|s| s.to_string())
                 .ok_or_else(|| GithubError::Other("encoded_jit_config missing".to_string()))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_agent_contains_version_and_sha() {
+        let ua = user_agent();
+        let ver = env!("CARGO_PKG_VERSION");
+        assert!(
+            ua.starts_with(&format!("spotted-arms/{ver} (")),
+            "UA was: {}",
+            ua
+        );
+        assert!(ua.ends_with(')'), "UA was: {}", ua);
+        if let Some(sha) = option_env!("VERGEN_GIT_SHA_SHORT") {
+            assert!(ua.contains(&format!("({sha})")), "UA was: {}", ua);
+        } else {
+            assert!(ua.contains("(unknown)"), "UA was: {}", ua);
+        }
     }
 }
