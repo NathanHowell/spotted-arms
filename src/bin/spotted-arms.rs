@@ -93,21 +93,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build app with fixed webhook path (/webhook)
     let app = spotted_arms::server::create_app(state);
 
-    // Determine port
-    // Note: if neither PORT env nor --port is passed, default is 3000
-    let port = cli.port;
-    if std::env::var("PORT").is_err()
-        && !std::env::args().any(|a| a == "--port" || a.starts_with("--port=") || a == "-p")
-        && port == 3000
-    {
-        info!("PORT not set; defaulting to 3000");
-    }
-
-    let listener = TcpListener::bind((IpAddr::from(Ipv6Addr::UNSPECIFIED), port))
+    let listener = TcpListener::bind((IpAddr::from(Ipv6Addr::UNSPECIFIED), cli.port))
         .await
         .unwrap();
 
-    info!("Starting server on port {}", port);
+    info!("Starting server on {}", listener.local_addr()?);
 
     // Enable HTTP/2 with axum::serve
     axum::serve(listener, app)
