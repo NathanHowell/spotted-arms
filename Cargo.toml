@@ -29,7 +29,7 @@ tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
 
 [dev-dependencies]
 serde_json = "1.0.145"
-serde_path_to_error = "0.1.17"
+serde_path_to_error = "0.1.20"
 tower = "0.5.2"
 
 [build-dependencies]
