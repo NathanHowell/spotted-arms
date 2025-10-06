@@ -82,7 +82,7 @@ impl<B> MakeSpan<B> for PropagateHeaders {
         let context = propagator.extract(&extractor);
 
         let span = info_span!("axum");
-        span.set_parent(context);
+        let _ = span.set_parent(context);
         span
     }
 }
