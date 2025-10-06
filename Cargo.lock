@@ -1474,6 +1474,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "opentelemetry"
+version = "0.31.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b84bcd6ae87133e903af7ef497404dda70c60d0ea14895fc8a5e6722754fc2a0"
+dependencies = [
+ "futures-core",
+ "futures-sink",
+ "js-sys",
+ "pin-project-lite",
+ "thiserror 2.0.17",
+ "tracing",
+]
+
+[[package]]
 name = "opentelemetry-gcloud-trace"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1482,7 +1496,7 @@ dependencies = [
  "async-trait",
  "futures",
  "gcloud-sdk",
- "opentelemetry",
+ "opentelemetry 0.30.0",
  "opentelemetry-semantic-conventions",
  "opentelemetry_sdk",
  "rsb_derive",
@@ -1506,7 +1520,7 @@ dependencies = [
  "futures-channel",
  "futures-executor",
  "futures-util",
- "opentelemetry",
+ "opentelemetry 0.30.0",
  "percent-encoding",
  "rand",
  "serde_json",
@@ -2244,7 +2258,7 @@ dependencies = [
  "gcloud-sdk",
  "http",
  "octocrab",
- "opentelemetry",
+ "opentelemetry 0.31.0",
  "opentelemetry-gcloud-trace",
  "opentelemetry_sdk",
  "pid1",
@@ -2639,7 +2653,7 @@ checksum = "ddcf5959f39507d0d04d6413119c04f33b623f4f951ebcbdddddfad2d0623a9c"
 dependencies = [
  "js-sys",
  "once_cell",
- "opentelemetry",
+ "opentelemetry 0.30.0",
  "opentelemetry_sdk",
  "smallvec",
  "tracing",
