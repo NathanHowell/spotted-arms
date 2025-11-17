@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for spotted-arms
 # Stage 1: Build the Rust application
-FROM rust:1.91-slim AS builder
+FROM rust:1.91-slim-trixie AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -32,7 +32,7 @@ COPY .cargo ./.cargo
 RUN cargo build --release --bin spotted-arms
 
 # Stage 2: Create the runtime image using distroless
-FROM gcr.io/distroless/cc-debian12:latest
+FROM gcr.io/distroless/cc-debian13:latest
 
 # Copy the binary from the builder stage
 COPY --from=builder /app/target/release/spotted-arms /usr/local/bin/spotted-arms
