@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for spotted-arms
 # Stage 1: Build the Rust application
-FROM rust:1.91-slim-trixie AS builder
+FROM rust:1.92-slim-trixie AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
