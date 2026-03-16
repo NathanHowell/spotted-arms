@@ -7,6 +7,10 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - dependencies
+    groups:
+      all-cargo:
+        patterns:
+          - "*"
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
@@ -14,6 +18,10 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - dependencies
+    groups:
+      all-actions:
+        patterns:
+          - "*"
   - package-ecosystem: docker
     directory: "/"
     schedule:
@@ -21,3 +29,7 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - dependencies
+    groups:
+      all-docker:
+        patterns:
+          - "*"
