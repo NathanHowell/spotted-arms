@@ -10,7 +10,7 @@ axum-github-webhook-extract = "0.3.0"
 clap = { version = "4.6.0", features = ["derive", "env", "unicode"] }
 gcloud-sdk = { version = "0.29.0", features = ["google-rest-compute-v1"] }
 http = "1.4.0"
-octocrab = "0.49.6"
+octocrab = "0.49.7"
 opentelemetry = { version = "0.31.0", features = ["metrics", "trace"] }
 opentelemetry-gcloud-trace = "0.23.0"
 opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio", "metrics", "trace", "experimental_trace_batch_span_processor_with_async_runtime"] }
@@ -34,5 +34,5 @@ tower = "0.5.3"
 
 [build-dependencies]
 # Use latest versions as requested
-vergen = { version = "10.0.0-beta.5", features = ["cargo"] }
-vergen-gitcl = "10.0.0-beta.5"
+vergen = { version = "10.0.0-beta.6", features = ["cargo"] }
+vergen-gitcl = "10.0.0-beta.6"
