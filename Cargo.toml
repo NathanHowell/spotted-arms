@@ -16,11 +16,11 @@ opentelemetry-gcloud-trace = "0.23.0"
 opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio", "metrics", "trace", "experimental_trace_batch_span_processor_with_async_runtime"] }
 pid1 = "0.1.6"
 reqwest = { version = "0.12.28", default-features = false, features = ["http2", "rustls-tls-webpki-roots", "json", "stream"] }
-rustls = { version = "0.23.37", features = ["aws-lc-rs"] }
+rustls = { version = "0.23.38", features = ["aws-lc-rs"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 thiserror = "2.0.18"
-tokio = { version = "1.51.0", features = ["rt-multi-thread", "macros", "time", "signal", "sync"] }
+tokio = { version = "1.51.1", features = ["rt-multi-thread", "macros", "time", "signal", "sync"] }
 tower = "0.5.3"
 tower-http = { version = "0.6.8", features = ["trace"] }
 tracing = "0.1.44"
