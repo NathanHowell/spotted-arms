@@ -1,47 +1,37 @@
-# Multi-stage Dockerfile for spotted-arms
-# Stage 1: Build the Rust application
+# syntax=docker/dockerfile:1
+
 FROM rust:1.95-slim-trixie AS builder
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    pkg-config \
-    libssl-dev \
-    ca-certificates \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        pkg-config \
+        libssl-dev \
+        ca-certificates \
+        build-essential \
+        git
 
-# Set the working directory
 WORKDIR /app
 
-# Copy dependency files first for better caching
-COPY Cargo.toml Cargo.lock ./
-
-# Create a dummy main.rs to build dependencies
-RUN mkdir -p src/bin && echo "fn main() {println!(\"hello\");}" > src/bin/spotted-arms.rs && \
-    echo "// dummy lib" > src/lib.rs
-
-# Build dependencies
-RUN cargo build --release --bin spotted-arms
-RUN rm -rf src
-
-# Copy the actual source code
-COPY src ./src
+COPY Cargo.toml Cargo.lock build.rs ./
 COPY .cargo ./.cargo
+COPY src ./src
+COPY .git ./.git
 
-# Build the application in release mode for x86_64
-RUN cargo build --release --bin spotted-arms
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cargo build --release --bin spotted-arms && \
+    cp /app/target/release/spotted-arms /usr/local/bin/spotted-arms
 
-# Stage 2: Create the runtime image using distroless
 FROM gcr.io/distroless/cc-debian13:latest
 
-# Copy the binary from the builder stage
-COPY --from=builder /app/target/release/spotted-arms /usr/local/bin/spotted-arms
+COPY --from=builder /usr/local/bin/spotted-arms /usr/local/bin/spotted-arms
 
-# Create a non-root user for security
 USER 65534:65534
 
-# Expose the default port (can be overridden via PORT env var)
 EXPOSE 3000
 
-# Set the entrypoint
 ENTRYPOINT ["/usr/local/bin/spotted-arms"]

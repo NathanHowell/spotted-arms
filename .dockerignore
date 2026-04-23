@@ -1,8 +1,7 @@
 # Ignore build artifacts and cache
 /target/
 
-# Ignore Git and IDE files
-.git/
+# Ignore IDE files (.git is kept so build.rs / vergen-gitcl can read commit info)
 .gitignore
 *.swp
 *.swo
