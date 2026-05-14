@@ -11,6 +11,14 @@ updates:
       all-cargo:
         patterns:
           - "*"
+    ignore:
+      # opentelemetry-gcloud-trace and tracing-opentelemetry only support 0.31.x;
+      # bumping past that breaks the build. Re-evaluate when those crates publish
+      # 0.32-compatible releases.
+      - dependency-name: "opentelemetry"
+        versions: [">=0.32.0"]
+      - dependency-name: "opentelemetry_sdk"
+        versions: [">=0.32.0"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
