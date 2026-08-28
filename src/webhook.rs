@@ -41,6 +41,7 @@ pub struct WorkflowJobWebhook {
 
 /// Handles incoming GitHub workflow job webhook events
 #[instrument(skip_all, fields(body, event, delivery, labels), err(Debug))]
+#[allow(clippy::result_large_err)] // ErrorResponse must be returned directly for IntoResponse
 pub async fn handle_workflow_job_event(
     headers: HeaderMap,
     State(state): State<crate::server::AppState>,
