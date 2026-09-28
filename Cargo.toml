@@ -12,7 +12,7 @@ gcloud-sdk = { version = "0.32.0", features = ["google-rest-compute-v1"] }
 http = "1.4.2"
 octocrab = "0.54.0"
 opentelemetry = { version = "0.33.0", features = ["metrics", "trace"] }
-opentelemetry-gcloud-trace = "0.27.0"
+opentelemetry-gcloud-trace = "0.28.0"
 opentelemetry_sdk = { version = "0.33.0", features = ["rt-tokio", "metrics", "trace", "experimental_trace_batch_span_processor_with_async_runtime"] }
 pid1 = "0.1.6"
 reqwest = { version = "0.13.4", default-features = false, features = ["http2", "rustls", "json", "stream"] }
@@ -24,7 +24,7 @@ tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "time", "
 tower = "0.5.3"
 tower-http = { version = "0.7.0", features = ["trace"] }
 tracing = "0.1.44"
-tracing-opentelemetry = "0.33.0"
+tracing-opentelemetry = "0.34.0"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 
 [dev-dependencies]
