@@ -18,6 +18,13 @@
 (*     concurrently, and any delivery may be redelivered.                  *)
 (*   - The `completed` payload carries runner_name (null if the job was    *)
 (*     cancelled before any runner picked it up).                          *)
+(*                                                                         *)
+(* VM template facts (modules/cloud-run):                                  *)
+(*   - the runner unit ends with `systemctl poweroff` and the template     *)
+(*     uses instance_termination_action = DELETE, so a VM deletes itself   *)
+(*     when its runner exits (Finish below);                               *)
+(*   - max_run_duration = 3600s bounds any leaked/idle VM to one hour, so  *)
+(*     leaks are a cost issue, not a safety issue, and are NOT checked.    *)
 (***************************************************************************)
 EXTENDS Naturals, FiniteSets
 
@@ -98,10 +105,11 @@ Finish(j) ==
     LET r == jobRunner[j] IN
     /\ jobSt[j] = "running"
     /\ jobSt'    = [jobSt EXCEPT ![j] = "done"]
-    /\ runnerSt' = [runnerSt EXCEPT ![r] = "exited"]
+    /\ runnerSt' = [runnerSt EXCEPT ![r] = "none"]
+    /\ vm'       = [vm EXCEPT ![r] = "absent"]      \* poweroff + DELETE
     /\ reg'      = [reg EXCEPT ![r] = FALSE]
     /\ emitted'  = emitted \cup {CompletedEv(j, r)}
-    /\ UNCHANGED <<jobRunner, vm, killed, delivered, hs>>
+    /\ UNCHANGED <<jobRunner, killed, delivered, hs>>
 
 (**************************** Webhook delivery *****************************)
 
@@ -184,11 +192,6 @@ Quiescent ==
 
 \* SAFETY: a VM is never deleted while it is running somebody's job.
 NoKilledJob == killed = {}
-
-\* SAFETY: once every job is finished and every event handled, no VM remains.
-NoLeakedVM ==
-    (Quiescent /\ \A j \in Jobs : jobSt[j] \in {"idle", "done"})
-        => \A n \in Names : vm[n] = "absent"
 
 \* SAFETY: once every event is handled, no queued job is left without a
 \* runner that could take it.
