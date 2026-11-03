@@ -7,12 +7,6 @@ use crate::github::GithubApi;
 use crate::machine::{Config, Effect, EffectError, Handler, JobEvent, Outcome, Response, Step};
 use axum::response::ErrorResponse;
 use futures_util::future::join_all;
-use gcloud_sdk::google_rest_apis::compute_v1;
-use gcloud_sdk::google_rest_apis::compute_v1::Instance;
-use gcloud_sdk::google_rest_apis::compute_v1::instances_api::{
-    ComputePeriodInstancesPeriodDeleteParams, ComputePeriodInstancesPeriodInsertParams,
-};
-use gcloud_sdk::google_rest_apis::compute_v1::region_instance_templates_api::ComputePeriodRegionInstanceTemplatesPeriodGetParams;
 use serde_json::Value;
 use tracing::{Span, field, info, instrument};
 
@@ -80,26 +74,8 @@ impl Deps<'_> {
             ),
             Effect::GetTemplateMetadata => Response::TemplateMetadata(
                 self.compute
-                    .compute_region_instance_templates_get(
-                        ComputePeriodRegionInstanceTemplatesPeriodGetParams {
-                            project: self.project_id.to_string(),
-                            region: self.region.to_string(),
-                            instance_template: self.instance_template.to_string(),
-                            fields: Some("properties.metadata".to_string()),
-                            ..Default::default()
-                        },
-                    )
+                    .get_template_metadata(self.project_id, self.region, self.instance_template)
                     .await
-                    .map(|template| {
-                        template
-                            .properties
-                            .and_then(|p| p.metadata)
-                            .and_then(|m| m.items)
-                            .unwrap_or_default()
-                            .into_iter()
-                            .filter_map(|item| Some((item.key?, item.value.unwrap_or_default())))
-                            .collect()
-                    })
                     .map_err(|e| {
                         tracing::error!(?e, "Failed to get instance template metadata");
                         effect_error(e)
@@ -118,35 +94,16 @@ impl Deps<'_> {
 
                 // there isn't a way to merge metadata items, so the machine
                 // hands us the merged list
-                let items = metadata
-                    .iter()
-                    .map(|(key, value)| compute_v1::MetadataItemsInner {
-                        key: Some(key.clone()),
-                        value: Some(value.clone()),
-                    })
-                    .collect();
-
                 Response::Inserted(
                     self.compute
-                        .compute_instances_insert(ComputePeriodInstancesPeriodInsertParams {
-                            project: self.project_id.to_string(),
-                            zone: zone.clone(),
-                            source_instance_template: Some(source_instance_template),
-                            instance: Some(Instance {
-                                name: Some(name.clone()),
-                                metadata: Some(
-                                    compute_v1::Metadata {
-                                        items: Some(items),
-                                        ..Default::default()
-                                    }
-                                    .into(),
-                                ),
-                                ..Instance::new()
-                            }),
-                            ..Default::default()
-                        })
+                        .insert_instance(
+                            self.project_id,
+                            zone,
+                            &source_instance_template,
+                            name,
+                            metadata,
+                        )
                         .await
-                        .map(|_operation| ())
                         .map_err(|e| {
                             tracing::error!(instance_name = %name, ?e, "Failed to create instance from template");
                             effect_error(e)
@@ -155,14 +112,8 @@ impl Deps<'_> {
             }
             Effect::DeleteInstance { name, zone } => Response::Deleted(
                 self.compute
-                    .compute_instances_delete(ComputePeriodInstancesPeriodDeleteParams {
-                        project: self.project_id.to_string(),
-                        zone: zone.clone(),
-                        instance: name.clone(),
-                        ..Default::default()
-                    })
+                    .delete_instance(self.project_id, zone, name)
                     .await
-                    .map(|_operation| ())
                     .map_err(effect_error),
             ),
         }

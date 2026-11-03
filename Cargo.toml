@@ -10,7 +10,7 @@ axum-github-webhook-extract = "0.3.0"
 clap = { version = "4.6.1", features = ["derive", "env", "unicode"] }
 fnv = "1.0.7"
 futures-util = { version = "0.3.31", default-features = false, features = ["alloc"] }
-gcloud-sdk = { version = "0.32.0", features = ["google-rest-compute-v1"] }
+google-cloud-compute-v1 = { version = "4", features = ["instances", "region-instance-templates"] }
 http = "1.4.2"
 octocrab = "0.54.0"
 opentelemetry = { version = "0.33.0", features = ["metrics", "trace"] }
