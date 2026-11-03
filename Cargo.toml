@@ -2,7 +2,7 @@
 name = "spotted-arms"
 edition = "2024"
 version = "0.1.0"
-rust-version = "1.89.0"
+rust-version = "1.99.0"
 
 [dependencies]
 axum = { version = "0.8.9", features = ["http2", "macros"] }
@@ -14,7 +14,7 @@ gcloud-sdk = { version = "0.32.0", features = ["google-rest-compute-v1"] }
 http = "1.4.2"
 octocrab = "0.54.0"
 opentelemetry = { version = "0.33.0", features = ["metrics", "trace"] }
-opentelemetry-gcloud-trace = "0.28.0"
+opentelemetry-gcloud-trace = "0.29.1"
 opentelemetry_sdk = { version = "0.33.0", features = ["rt-tokio", "metrics", "trace", "experimental_trace_batch_span_processor_with_async_runtime"] }
 pid1 = "0.1.6"
 reqwest = { version = "0.13.4", default-features = false, features = ["http2", "rustls", "json", "stream"] }
