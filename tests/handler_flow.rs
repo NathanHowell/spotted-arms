@@ -18,53 +18,34 @@ impl MockCompute {
 struct MockGithub;
 
 impl spotted_arms::compute::ComputeApi for MockCompute {
-    fn compute_region_instance_templates_get(
+    fn get_template_metadata(
         &self,
-        _params: gcloud_sdk::google_rest_apis::compute_v1::region_instance_templates_api::ComputePeriodRegionInstanceTemplatesPeriodGetParams,
-    ) -> std::pin::Pin<
-        Box<
-            dyn std::future::Future<
-                    Output = Result<
-                        gcloud_sdk::google_rest_apis::compute_v1::InstanceTemplate,
-                        spotted_arms::compute::ComputeError,
-                    >,
-                > + Send,
-        >,
-    > {
+        _project: &str,
+        _region: &str,
+        _template: &str,
+    ) -> spotted_arms::compute::ComputeFuture<Vec<(String, String)>> {
         Box::pin(async { Err(spotted_arms::compute::ComputeError::Other("unused".into())) })
     }
 
-    fn compute_instances_insert(
+    fn insert_instance(
         &self,
-        _params: gcloud_sdk::google_rest_apis::compute_v1::instances_api::ComputePeriodInstancesPeriodInsertParams,
-    ) -> std::pin::Pin<
-        Box<
-            dyn std::future::Future<
-                    Output = Result<
-                        gcloud_sdk::google_rest_apis::compute_v1::Operation,
-                        spotted_arms::compute::ComputeError,
-                    >,
-                > + Send,
-        >,
-    > {
+        _project: &str,
+        _zone: &str,
+        _source_instance_template: &str,
+        _name: &str,
+        _metadata: &[(String, String)],
+    ) -> spotted_arms::compute::ComputeFuture<()> {
         Box::pin(async { Err(spotted_arms::compute::ComputeError::Other("unused".into())) })
     }
 
-    fn compute_instances_delete(
+    fn delete_instance(
         &self,
-        params: gcloud_sdk::google_rest_apis::compute_v1::instances_api::ComputePeriodInstancesPeriodDeleteParams,
-    ) -> std::pin::Pin<
-        Box<
-            dyn std::future::Future<
-                    Output = Result<
-                        gcloud_sdk::google_rest_apis::compute_v1::Operation,
-                        spotted_arms::compute::ComputeError,
-                    >,
-                > + Send,
-        >,
-    > {
-        self.deleted.lock().unwrap().push(params.instance);
-        Box::pin(async { Ok(gcloud_sdk::google_rest_apis::compute_v1::Operation::default()) })
+        _project: &str,
+        _zone: &str,
+        name: &str,
+    ) -> spotted_arms::compute::ComputeFuture<()> {
+        self.deleted.lock().unwrap().push(name.to_string());
+        Box::pin(async { Ok(()) })
     }
 }
 
