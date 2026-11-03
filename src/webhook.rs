@@ -1,5 +1,5 @@
-use crate::instance::{create_instance, delete_instance};
-use crate::utils::make_instance_name;
+use crate::instance::{Deps, handle_event};
+use crate::machine::{JobAction, JobEvent};
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::ErrorResponse;
@@ -11,23 +11,9 @@ use octocrab::models::webhook_events::payload::{
 };
 use octocrab::models::{Author, Repository};
 use serde::Deserialize;
-use std::collections::HashSet;
+use serde_json::Value;
 use tracing::field;
 use tracing::{Instrument, Span, info, info_span, instrument};
-
-const REQUIRED_LABELS: &[&str] = &["linux", "self-hosted", "ARM64"];
-
-/// Checks if the job has the required labels for GCP ARM64 runners
-fn has_required_labels<'a>(labels: impl IntoIterator<Item = &'a String>) -> bool {
-    let labels = labels
-        .into_iter()
-        .map(String::as_ref)
-        .collect::<HashSet<&str>>();
-
-    REQUIRED_LABELS
-        .iter()
-        .all(|&required| labels.contains(required))
-}
 
 #[derive(Deserialize)]
 pub struct WorkflowJobWebhook {
@@ -37,6 +23,39 @@ pub struct WorkflowJobWebhook {
     pub _installation: Option<EventInstallation>,
     #[serde(flatten)]
     pub payload: WorkflowJobWebhookEventPayload,
+}
+
+/// Extracts the fields the state machine needs from a `workflow_job` webhook.
+/// Rejects payloads without job identifiers rather than defaulting them (a
+/// default would make every malformed event collide on one instance name).
+pub fn job_event(body: &WorkflowJobWebhook) -> Result<JobEvent, &'static str> {
+    let job = &body.payload.workflow_job;
+    let id = |key| job.get(key).and_then(Value::as_i64);
+
+    Ok(JobEvent {
+        action: match body.payload.action {
+            WorkflowJobWebhookEventAction::Queued => JobAction::Queued,
+            WorkflowJobWebhookEventAction::Completed => JobAction::Completed,
+            _ => JobAction::Other,
+        },
+        repo_url: body.repository.url.clone(),
+        run_id: id("run_id").ok_or("workflow_job.run_id missing")?,
+        job_id: id("id").ok_or("workflow_job.id missing")?,
+        labels: job
+            .get("labels")
+            .and_then(Value::as_array)
+            .map(|labels| {
+                labels
+                    .iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        runner_name: job
+            .get("runner_name")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+    })
 }
 
 /// Handles incoming GitHub workflow job webhook events
@@ -70,71 +89,27 @@ pub async fn handle_workflow_job_event(
         return Ok(());
     }
 
-    let workflow_job = &body.payload.workflow_job;
-    let labels = &workflow_job
-        .get("labels")
-        .unwrap_or_default()
-        .as_array()
-        .unwrap_or(&vec![])
-        .iter()
-        .map(|v| v.as_str().unwrap_or_default().to_string())
-        .collect::<HashSet<_>>();
-
-    span.record("labels", field::debug(labels));
-
-    // Check if the job has required labels before creating instance
-    if !has_required_labels(labels) {
-        info!(
-            job.labels = ?labels,
-            required.labels = ?REQUIRED_LABELS,
-            "Ignoring job without required labels",
-        );
-        return Ok(());
-    }
-
-    let instance_name = make_instance_name(&body.payload);
+    let event = job_event(&body).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    span.record("labels", field::debug(&event.labels));
 
     let span = info_span!("workflow_job_event",
         action = ?body.payload.action,
-        instance_name = %instance_name
+        instance_name = %crate::utils::instance_name(event.run_id, event.job_id),
     );
 
-    async move {
-        match body.payload.action {
-            WorkflowJobWebhookEventAction::Queued => {
-                info!("Processing queued workflow job");
-                create_instance(
-                    state.compute_client.as_ref(),
-                    state.github_client.as_ref(),
-                    &state.project_id,
-                    &state.region,
-                    &state.token,
-                    &state.instance_template,
-                    instance_name.as_str(),
-                    &body,
-                )
-                .await
-            }
-            WorkflowJobWebhookEventAction::Completed => {
-                info!("Processing completed workflow job");
-                delete_instance(
-                    state.compute_client.as_ref(),
-                    &state.project_id,
-                    &state.region,
-                    instance_name.as_str(),
-                    &body,
-                )
-                .await
-            }
-            _ => {
-                info!(?body.payload.action, "Ignoring workflow job event");
-                Ok(())
-            }
-        }
-    }
-    .instrument(span)
-    .await
-    .map_err(|e| *e)
+    let deps = Deps {
+        compute: state.compute_client.as_ref(),
+        github: state.github_client.as_ref(),
+        project_id: &state.project_id,
+        region: &state.region,
+        github_token: &state.token,
+        instance_template: &state.instance_template,
+    };
+
+    handle_event(&deps, &body, &event)
+        .instrument(span)
+        .await
+        .map_err(|e| *e)
 }
 
 #[cfg(test)]

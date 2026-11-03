@@ -1,6 +1,7 @@
 pub mod compute;
 pub mod github;
 pub mod instance;
+pub mod machine;
 pub mod metadata;
 pub mod server;
 pub mod telemetry;

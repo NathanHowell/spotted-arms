@@ -102,7 +102,8 @@ src/
 ├── lib.rs                 # Library root
 ├── server.rs             # Axum HTTP server and routing
 ├── webhook.rs            # GitHub webhook handler
-├── instance.rs           # GCE instance management
+├── machine.rs            # Pure (sans-IO) runner lifecycle state machine: events in, effects out
+├── instance.rs           # Async interpreter that runs the machine's effects against GCE/GitHub
 ├── compute.rs            # Google Compute Engine API client
 ├── github.rs             # GitHub API client  
 ├── metadata.rs           # GCP metadata utilities
@@ -114,12 +115,21 @@ src/
 ```
 tests/
 ├── handler_flow.rs           # Integration tests for webhook handling
+├── world.rs                  # Simulated GitHub+GCE world; replays TLA+ counterexamples and
+│                             #   exhaustively explores interleavings of the real state machine
 ├── webhook_integration.rs    # Webhook payload parsing tests
 └── fixtures/                # Test webhook payloads
     ├── completed-payload.json
     ├── in-progress-payload.json
     └── queued-payload.json
 ```
+
+### Formal model
+- `tla/SpottedArms.tla` models the webhook -> runner lifecycle; run scenarios with
+  `just tlc <cfg>` or `just tlc-all` (needs TLA+ Toolbox's `tla2tools.jar`).
+- Runners are fungible: GitHub gives any idle runner to any queued job, so delete the
+  `runner_name` from the `completed` event, never a name derived from the job id.
+- Keep `machine.rs` free of I/O. Add behaviour there and test it with `Handler::start`/`resume`.
 
 ### Configuration Files
 - `Cargo.toml` - Rust project configuration and dependencies
