@@ -135,10 +135,14 @@ pub fn has_required_labels(labels: &[String]) -> bool {
         .all(|req| labels.iter().any(|l| l.eq_ignore_ascii_case(req)))
 }
 
-/// Deterministically selects a zone based on instance name hash.
+/// Deterministically selects a zone from the instance name.
+///
+/// Uses FNV-1a over the name's bytes rather than `std::hash::DefaultHasher`,
+/// whose algorithm is explicitly not guaranteed across Rust releases. The zone
+/// is *recomputed* from the instance name when deleting, so create and delete
+/// must always agree, whatever toolchain built each.
 pub fn select_zone_for_region(region: &str, instance_name: &str) -> Result<String, String> {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
+    use std::hash::Hasher;
 
     if region != "us-central1" {
         return Err(format!(
@@ -146,9 +150,9 @@ pub fn select_zone_for_region(region: &str, instance_name: &str) -> Result<Strin
         ));
     }
 
-    let mut hasher = DefaultHasher::new();
-    instance_name.hash(&mut hasher);
-    let index = (hasher.finish() as usize) % US_CENTRAL1_ZONES.len();
+    let mut hasher = fnv::FnvHasher::default();
+    hasher.write(instance_name.as_bytes());
+    let index = (hasher.finish() % US_CENTRAL1_ZONES.len() as u64) as usize;
     Ok(US_CENTRAL1_ZONES[index].to_string())
 }
 
@@ -300,6 +304,14 @@ impl Handler {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const PINNED_ZONES: &[(&str, &str)] = &[
+        ("gha-1-2", "us-central1-a"),
+        ("gha-123-42", "us-central1-b"),
+        ("gha-123-7", "us-central1-a"),
+        ("gha-10-20", "us-central1-c"),
+        ("gha-9876543210-1234567890", "us-central1-b"),
+    ];
 
     fn cfg() -> Config {
         Config {
@@ -462,10 +474,13 @@ mod tests {
         assert!(matches!(step, Step::Done(Outcome::Ignored(_))));
     }
 
+    /// Pinned values: if these change, instances created by an older build
+    /// would be deleted in the wrong zone (and the NotFound swallowed).
     #[test]
-    fn zone_is_stable_for_a_name() {
-        let a = select_zone_for_region("us-central1", "gha-1-2").unwrap();
-        assert_eq!(a, select_zone_for_region("us-central1", "gha-1-2").unwrap());
-        assert!(US_CENTRAL1_ZONES.contains(&a.as_str()));
+    fn zone_selection_is_pinned() {
+        let zone = |name| select_zone_for_region("us-central1", name).unwrap();
+        for (name, expected) in PINNED_ZONES {
+            assert_eq!(zone(name), *expected, "{name}");
+        }
     }
 }
