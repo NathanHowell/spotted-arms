@@ -1,6 +1,12 @@
+//! Async interpreter for the pure state machine in `machine.rs`: runs each
+//! [`Effect`] against the real GitHub and Compute APIs and feeds the results
+//! back until the handler is done.
+
 use crate::compute::{ComputeApi, ComputeError};
 use crate::github::GithubApi;
+use crate::machine::{Config, Effect, EffectError, Handler, JobEvent, Outcome, Response, Step};
 use axum::response::ErrorResponse;
+use futures_util::future::join_all;
 use gcloud_sdk::google_rest_apis::compute_v1;
 use gcloud_sdk::google_rest_apis::compute_v1::Instance;
 use gcloud_sdk::google_rest_apis::compute_v1::instances_api::{
@@ -8,17 +14,17 @@ use gcloud_sdk::google_rest_apis::compute_v1::instances_api::{
 };
 use gcloud_sdk::google_rest_apis::compute_v1::region_instance_templates_api::ComputePeriodRegionInstanceTemplatesPeriodGetParams;
 use serde_json::Value;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use tracing::{Span, field, info, instrument};
 
-// Supported zones for us-central1 region
-const US_CENTRAL1_ZONES: &[&str] = &[
-    "us-central1-a",
-    "us-central1-b",
-    "us-central1-c",
-    "us-central1-f",
-];
+/// Everything the interpreter needs to talk to the outside world.
+pub struct Deps<'a> {
+    pub compute: &'a dyn ComputeApi,
+    pub github: &'a dyn GithubApi,
+    pub project_id: &'a str,
+    pub region: &'a str,
+    pub github_token: &'a str,
+    pub instance_template: &'a str,
+}
 
 fn add_event_fields_to_span(event: &crate::webhook::WorkflowJobWebhook) {
     let payload = &event.payload;
@@ -50,244 +56,180 @@ fn add_event_fields_to_span(event: &crate::webhook::WorkflowJobWebhook) {
         );
 }
 
-/// Deterministically selects a zone based on instance name hash
-fn select_zone_for_region(region: &str, instance_name: &str) -> Result<String, Box<ErrorResponse>> {
-    if region != "us-central1" {
-        tracing::error!(
-            "Unsupported region: {}. Only us-central1 is currently supported.",
-            region
-        );
-
-        return Err(ErrorResponse::from(http::StatusCode::BAD_REQUEST).into());
+fn effect_error(e: ComputeError) -> EffectError {
+    match e {
+        ComputeError::NotFound => EffectError::NotFound,
+        ComputeError::Other(message) => EffectError::Other(message),
     }
-
-    let mut hasher = DefaultHasher::new();
-    instance_name.hash(&mut hasher);
-    let hash = hasher.finish();
-
-    let zone_index = (hash as usize) % US_CENTRAL1_ZONES.len();
-    let selected_zone = US_CENTRAL1_ZONES[zone_index];
-
-    tracing::debug!(
-        "Selected zone {} for instance {} in region {}",
-        selected_zone,
-        instance_name,
-        region
-    );
-
-    Ok(selected_zone.to_string())
 }
 
-/// Creates a new compute instance from a template for the given workflow job
-#[instrument(
-    skip(api, github, event, github_token),
-    fields(job_id, repo_url, repository, run_attempt, run_id),
-    err(Debug)
-)]
-#[allow(clippy::too_many_arguments)]
-pub async fn create_instance(
-    api: &dyn ComputeApi,
-    github: &dyn GithubApi,
-    project_id: &str,
-    region: &str,
-    github_token: &str,
-    instance_template: &str,
-    instance_name: &str,
-    event: &crate::webhook::WorkflowJobWebhook,
-) -> Result<(), Box<ErrorResponse>> {
-    add_event_fields_to_span(event);
-
-    let repo_url = event.repository.url.clone();
-    if repo_url.host_str() != Some("api.github.com") {
-        tracing::error!(
-            repo_url = display(repo_url),
-            "Unexpected repository URL format"
-        );
-        return Err(Box::new(
-            (
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Invalid repository URL format",
-            )
-                .into(),
-        ));
-    }
-
-    // Extract runner name and labels from the event payload
-    let runner_name = instance_name; // Use instance name as runner name
-    let payload = &event.payload;
-    let labels = payload
-        .workflow_job
-        .get("labels")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                .collect::<Vec<String>>()
-        })
-        .unwrap_or_default();
-
-    // Use provided instance template
-    let template_name = instance_template.to_string();
-
-    // Generate JIT config and fetch template metadata concurrently
-    let (jit_config, template_metadata) = tokio::try_join!(
-        async {
-            github
-                .generate_jit_config(&repo_url, github_token, runner_name, &labels)
-                .await
-                .map_err(|e| -> ErrorResponse {
-                    tracing::error!(?e, "Failed to generate JIT config");
-                    (
-                        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                        "jit config failed",
-                    )
-                        .into()
-                })
-        },
-        async {
-            api.compute_region_instance_templates_get(
-                ComputePeriodRegionInstanceTemplatesPeriodGetParams {
-                    project: project_id.to_string(),
-                    region: region.to_string(),
-                    instance_template: template_name.to_string(),
-                    fields: Some("properties.metadata".to_string()),
-                    ..Default::default()
-                },
-            )
-            .await
-            .map_err(|e| -> ErrorResponse {
-                tracing::error!(?e, "Failed to get instance template metadata");
-                (
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    "templates get failed",
-                )
-                    .into()
-            })
-        }
-    )?;
-
-    info!(
-        instance_name,
-        labels = ?event.payload.workflow_job.get("labels"),
-        "Creating instance from template for job",
-    );
-
-    // Select zone deterministically based on instance name
-    let zone = select_zone_for_region(region, instance_name)?;
-
-    // Use the preexisting instance template
-    let source_instance_template = format!(
-        "projects/{}/regions/{}/instanceTemplates/{}",
-        project_id, region, template_name
-    );
-
-    info!(source_instance_template, zone, "Using instance template");
-
-    // there isn't a way to merge metadata items, so we have to do it manually
-    let mut metadata = template_metadata
-        .properties
-        .and_then(|p| p.metadata)
-        .and_then(|m| m.items)
-        .unwrap_or_default();
-    metadata.push(compute_v1::MetadataItemsInner {
-        key: Some("JIT_CONFIG".to_string()),
-        value: Some(jit_config),
-    });
-
-    let request = ComputePeriodInstancesPeriodInsertParams {
-        project: project_id.to_string(),
-        zone: zone.clone(),
-        source_instance_template: Some(source_instance_template),
-        instance: Some(Instance {
-            name: Some(instance_name.to_string()),
-            metadata: Some(
-                compute_v1::Metadata {
-                    items: Some(metadata),
-                    ..Default::default()
-                }
-                .into(),
+impl Deps<'_> {
+    async fn run(&self, effect: &Effect, event: &JobEvent) -> Response {
+        match effect {
+            Effect::GenerateJit {
+                runner_name,
+                labels,
+            } => Response::Jit(
+                self.github
+                    .generate_jit_config(&event.repo_url, self.github_token, runner_name, labels)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!(?e, "Failed to generate JIT config");
+                        EffectError::Other(e.to_string())
+                    }),
             ),
-            ..Instance::new()
-        }),
-        ..Default::default()
-    };
+            Effect::GetTemplateMetadata => Response::TemplateMetadata(
+                self.compute
+                    .compute_region_instance_templates_get(
+                        ComputePeriodRegionInstanceTemplatesPeriodGetParams {
+                            project: self.project_id.to_string(),
+                            region: self.region.to_string(),
+                            instance_template: self.instance_template.to_string(),
+                            fields: Some("properties.metadata".to_string()),
+                            ..Default::default()
+                        },
+                    )
+                    .await
+                    .map(|template| {
+                        template
+                            .properties
+                            .and_then(|p| p.metadata)
+                            .and_then(|m| m.items)
+                            .unwrap_or_default()
+                            .into_iter()
+                            .filter_map(|item| Some((item.key?, item.value.unwrap_or_default())))
+                            .collect()
+                    })
+                    .map_err(|e| {
+                        tracing::error!(?e, "Failed to get instance template metadata");
+                        effect_error(e)
+                    }),
+            ),
+            Effect::InsertInstance {
+                name,
+                zone,
+                metadata,
+            } => {
+                let source_instance_template = format!(
+                    "projects/{}/regions/{}/instanceTemplates/{}",
+                    self.project_id, self.region, self.instance_template
+                );
+                info!(source_instance_template, zone, "Using instance template");
 
-    match api.compute_instances_insert(request).await {
-        Ok(_operation) => {
-            info!(
-                instance_name,
-                zone, "Successfully initiated instance creation from template",
-            );
-            Ok(())
-        }
-        Err(e) => {
-            tracing::error!(instance_name, ?e, "Failed to create instance from template",);
+                // there isn't a way to merge metadata items, so the machine
+                // hands us the merged list
+                let items = metadata
+                    .iter()
+                    .map(|(key, value)| compute_v1::MetadataItemsInner {
+                        key: Some(key.clone()),
+                        value: Some(value.clone()),
+                    })
+                    .collect();
 
-            Err(Box::new(
-                (
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("{e:?}"),
+                Response::Inserted(
+                    self.compute
+                        .compute_instances_insert(ComputePeriodInstancesPeriodInsertParams {
+                            project: self.project_id.to_string(),
+                            zone: zone.clone(),
+                            source_instance_template: Some(source_instance_template),
+                            instance: Some(Instance {
+                                name: Some(name.clone()),
+                                metadata: Some(
+                                    compute_v1::Metadata {
+                                        items: Some(items),
+                                        ..Default::default()
+                                    }
+                                    .into(),
+                                ),
+                                ..Instance::new()
+                            }),
+                            ..Default::default()
+                        })
+                        .await
+                        .map(|_operation| ())
+                        .map_err(|e| {
+                            tracing::error!(instance_name = %name, ?e, "Failed to create instance from template");
+                            effect_error(e)
+                        }),
                 )
-                    .into(),
-            ))
+            }
+            Effect::DeleteInstance { name, zone } => Response::Deleted(
+                self.compute
+                    .compute_instances_delete(ComputePeriodInstancesPeriodDeleteParams {
+                        project: self.project_id.to_string(),
+                        zone: zone.clone(),
+                        instance: name.clone(),
+                        ..Default::default()
+                    })
+                    .await
+                    .map(|_operation| ())
+                    .map_err(effect_error),
+            ),
         }
     }
 }
 
-/// Deletes the compute instance for the given workflow job
+/// Drive a [`Handler`] to completion against real APIs.
+pub async fn drive(deps: &Deps<'_>, cfg: &Config, event: &JobEvent) -> Outcome {
+    let (mut handler, mut step) = Handler::start(cfg, event);
+    loop {
+        let effects = match step {
+            Step::Done(outcome) => return outcome,
+            Step::Do(effects) => effects,
+        };
+
+        for effect in &effects {
+            info!(?effect, "Running effect");
+        }
+        let responses = join_all(effects.iter().map(|e| deps.run(e, event))).await;
+
+        // A batch is always answered completely before the machine issues
+        // its next one, so at most one response yields new effects.
+        let mut next = Vec::new();
+        for response in responses {
+            match handler.resume(response) {
+                Step::Done(outcome) => return outcome,
+                Step::Do(effects) => next.extend(effects),
+            }
+        }
+        if next.is_empty() {
+            return Outcome::Failed {
+                status: http::StatusCode::INTERNAL_SERVER_ERROR,
+                message: "state machine stalled".to_string(),
+            };
+        }
+        step = Step::Do(next);
+    }
+}
+
+/// Handle one webhook event: run the state machine and map its outcome to an
+/// HTTP result.
 #[instrument(
-    skip(api, event),
+    skip_all,
     fields(conclusion, job_id, repo_url, repository, run_attempt, run_id),
     err(Debug)
 )]
-pub async fn delete_instance(
-    api: &dyn ComputeApi,
-    project_id: &str,
-    region: &str,
-    instance_name: &str,
-    event: &crate::webhook::WorkflowJobWebhook,
+pub async fn handle_event(
+    deps: &Deps<'_>,
+    webhook: &crate::webhook::WorkflowJobWebhook,
+    event: &JobEvent,
 ) -> Result<(), Box<ErrorResponse>> {
-    add_event_fields_to_span(event);
+    add_event_fields_to_span(webhook);
 
-    info!(instance_name, "Deleting instance");
+    let cfg = Config {
+        region: deps.region.to_string(),
+    };
 
-    // Select the same zone that was used for creation
-    let zone = select_zone_for_region(region, instance_name)?;
-
-    match api
-        .compute_instances_delete(ComputePeriodInstancesPeriodDeleteParams {
-            project: project_id.to_string(),
-            zone: zone.clone(),
-            instance: instance_name.to_string(),
-            ..Default::default()
-        })
-        .await
-    {
-        Ok(_) => {
-            info!(
-                instance_name,
-                zone, "Successfully initiated instance deletion"
-            );
+    match drive(deps, &cfg, event).await {
+        Outcome::Failed { status, message } => {
+            tracing::error!(%status, message, "Workflow job handling failed");
+            Err(Box::new((status, message).into()))
         }
-        Err(ComputeError::NotFound) => {
-            info!(
-                instance_name,
-                zone, "Instance not found in zone (may have already been deleted)"
-            );
-        }
-        Err(other) => {
-            tracing::error!(instance_name, ?other, "Failed to delete instance");
-            return Err(Box::new(
-                (
-                    http::StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("{other:?}"),
-                )
-                    .into(),
-            ));
+        outcome => {
+            info!(?outcome, "Workflow job handled");
+            Ok(())
         }
     }
-
-    Ok(())
 }
 
 #[cfg(test)]
@@ -311,8 +253,6 @@ mod tests {
             env::var("GCP_PROJECT_ID").unwrap_or_else(|_| "finches-470422-builds".to_string());
         let region = env::var("GCP_REGION").unwrap_or_else(|_| "us-central1".to_string());
 
-        // Create a mock WorkflowJobWebhook using JSON deserialization
-        // This is much cleaner than trying to construct the struct manually
         let body = include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/tests/fixtures/queued-payload.json"
@@ -321,46 +261,24 @@ mod tests {
         let mock_event =
             serde_path_to_error::deserialize::<_, crate::webhook::WorkflowJobWebhook>(deserializer)
                 .unwrap();
+        let event = crate::webhook::job_event(&mock_event).expect("valid job event");
 
         let client = crate::compute::ComputeClient::new()
             .await
             .expect("Failed to create compute client");
         let github = crate::github::GithubClient::new();
 
-        let instance_name = "test-runner-12345";
-        let github_token = "test-token";
+        let deps = Deps {
+            compute: &client,
+            github: &github,
+            project_id: &project_id,
+            region: &region,
+            github_token: "test-token",
+            instance_template: "test-template",
+        };
 
-        println!("Creating instance with parameters:");
-        println!("  Project ID: {}", project_id);
-        println!("  Region: {}", region);
-        println!("  Instance Name: {}", instance_name);
-        println!(
-            "  Job Labels: {:?}",
-            mock_event.payload.workflow_job.get("labels")
-        );
-
-        // Call the function under test with correct parameter order
-        let result = create_instance(
-            &client,
-            &github,
-            &project_id,
-            &region,
-            github_token,
-            "test-template",
-            instance_name,
-            &mock_event,
-        )
-        .await;
-
-        match result {
-            Ok(()) => {
-                println!("✅ Instance creation initiated successfully!");
-                println!("Check the Google Cloud Console to verify the instance was created.");
-            }
-            Err(e) => {
-                println!("❌ Instance creation failed: {:?}", e);
-                panic!("Test failed with error: {:?}", e);
-            }
-        }
+        handle_event(&deps, &mock_event, &event)
+            .await
+            .expect("instance creation failed");
     }
 }

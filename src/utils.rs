@@ -1,48 +1,24 @@
-use octocrab::models::webhook_events::payload::WorkflowJobWebhookEventPayload;
-use serde_json::Value;
-
-/// Generates a deterministic instance name from a workflow job event.
+/// Generates a deterministic instance name for a workflow job.
 ///
 /// The name format is: `gha-{run_id}-{job_id}`
 /// - Lowercased; only `[a-z0-9-]` are retained
 /// - Truncated to 63 characters
 /// - 1:1 mapping per job via `run_id` and `id`
 ///
-/// Example
+/// Note the name identifies the VM that is *created for* a job. It does not
+/// identify the VM that *runs* the job: GitHub assigns any idle runner with
+/// matching labels. Use the `runner_name` from the completed event for that.
 ///
-/// ```rust,ignore
-/// use octocrab::models::webhook_events::payload::WorkflowJobWebhookEventPayload;
-/// use serde_json::from_str;
-///
-/// // minimal payload with required fields
-/// let payload: WorkflowJobWebhookEventPayload = from_str(r#"{
-///   "action": "queued",
-///   "workflow_job": {
-///     "id": 42,
-///     "run_id": 123,
-///     "labels": []
-///   }
-/// }"#).unwrap();
-///
-/// let name = spotted_arms::utils::make_instance_name(&payload);
-/// assert_eq!(name, "gha-123-42");
 /// ```
-pub fn make_instance_name(payload: &WorkflowJobWebhookEventPayload) -> String {
-    let job = &payload.workflow_job;
-
-    // deterministic, <= 63 chars; include run_id for 1:1 mapping
-    format!(
-        "gha-{}-{}",
-        job.get("run_id")
-            .and_then(Value::as_i64)
-            .unwrap_or_default(),
-        job.get("id").and_then(Value::as_i64).unwrap_or_default(),
-    )
-    .to_lowercase()
-    .chars()
-    .filter(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == '-')
-    .take(63)
-    .collect()
+/// assert_eq!(spotted_arms::utils::instance_name(123, 42), "gha-123-42");
+/// ```
+pub fn instance_name(run_id: i64, job_id: i64) -> String {
+    format!("gha-{run_id}-{job_id}")
+        .to_lowercase()
+        .chars()
+        .filter(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == '-')
+        .take(63)
+        .collect()
 }
 
 #[cfg(test)]
