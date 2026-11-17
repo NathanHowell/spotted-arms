@@ -274,12 +274,12 @@ fn successors(w: &World, opts: &Opts) -> Vec<(String, World)> {
         add(format!("deliver {ev:?}"), &|n| n.deliver(ev));
     }
     for (ev, pending) in &w.handlers {
-        for idx in 0..pending.inflight.len() {
-            add(format!("{ev:?}: run {:?}", pending.inflight[idx]), &|n| {
+        for (idx, step) in pending.inflight.iter().enumerate() {
+            add(format!("{ev:?}: run {step:?}"), &|n| {
                 n.step_handler(ev, idx, false)
             });
             if opts.faults {
-                add(format!("{ev:?}: FAULT {:?}", pending.inflight[idx]), &|n| {
+                add(format!("{ev:?}: FAULT {step:?}"), &|n| {
                     n.step_handler(ev, idx, true)
                 });
             }

@@ -942,9 +942,9 @@ dependencies = [
 
 [[package]]
 name = "google-cloud-auth"
-version = "1.18.0"
+version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d563c7b987f40249c274a4e6a671661df6be2d084f08476dda2f0f931576cfcf"
+checksum = "76c32ec5fc751fadaad12f9d135ac1e2672d28fa84190319d654c99075699b22"
 dependencies = [
  "async-trait",
  "aws-lc-rs",
@@ -971,9 +971,9 @@ dependencies = [
 
 [[package]]
 name = "google-cloud-compute-v1"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "991eea5611b579623032413d375b0cf627f205d00a254835c3f94f943004f1e4"
+checksum = "eb5006fd6610cc54fd4438b38a8295654b6358bf481406c2fc08bf7db71dee3f"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1010,9 +1010,9 @@ dependencies = [
 
 [[package]]
 name = "google-cloud-gax-internal"
-version = "0.7.21"
+version = "0.7.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ad2379de0de5562c27eb79acd9c36143719a9271191df5d0ac6eb162a1b9d7e"
+checksum = "1a289ddad42a31682034b6359b1837cd2b529487491ae64dc4e9930a9d0152f2"
 dependencies = [
  "bytes",
  "futures",
@@ -1068,9 +1068,9 @@ dependencies = [
 
 [[package]]
 name = "google-cloud-lro"
-version = "1.11.0"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfb938b40ede9ef70c24f49c2687d84f289c9e9104ddfece739985e4b4844b8f"
+checksum = "88dedc739a889619d0be6ba9f90bd99e450a921f035e16b81a2e282cb8347e86"
 dependencies = [
  "google-cloud-gax",
  "google-cloud-gax-internal",
@@ -1097,9 +1097,9 @@ dependencies = [
 
 [[package]]
 name = "google-cloud-wkt"
-version = "1.10.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75baa147c141fa2b11047827e7ff4eea3a84ab00c3d2cf44fccd132b2ed326cf"
+checksum = "75d00ec306dbc2cf7adf222409ec22515c39308124e3d357ecb163ffa61172ba"
 dependencies = [
  "base64 0.23.1",
  "bytes",
@@ -1957,9 +1957,9 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry-gcloud-trace"
-version = "0.29.1"
+version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09c153e06a1a064f356dd131267cd6fbac1238333936c414d6abd492adbc8043"
+checksum = "8f37db23181927b3c4bbe98bcd0d22fbb8d2f4bf4daa9900acb5dc09ed8905ee"
 dependencies = [
  "async-trait",
  "futures",
